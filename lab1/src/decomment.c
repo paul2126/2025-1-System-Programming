@@ -229,11 +229,15 @@ void char_const_loop() {
     } else if (ich == EOF) { // END_CHAR_CONST
       // print_cur_char('\n');
       break;
-    } else if (ch == '\\') { // Check backslash
+    } else if (ch == '\\' && is_backslash != 1) {
+      // Check backslash and also two backslashes
+      // if two backslashes then ignore since it is a char and not
+      // special char
       print_cur_char(ch);
       is_backslash = 1;
     } else { // CHAR_CONST
       print_cur_char(ch);
+      is_backslash = 0;
     }
   } while (ich != EOF);
 }
