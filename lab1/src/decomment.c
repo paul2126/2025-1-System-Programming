@@ -212,21 +212,26 @@ void string_loop() {
 void char_const_loop() {
   char ch;
   int ich;
+  int is_backslash = 0;
 
   print_cur_char('\''); // Print starting single quote
   do {
     ich = getchar();
     ch = (char)ich;
 
-    if (ch == '\'') { // END_CHAR_CONST
+    if (ch == '\'' && is_backslash != 1) { // END_CHAR_CONST
       print_cur_char(ch);
       break;
     } else if (ch == '\n') { // END_CHAR_CONST
       print_cur_char(ch);
+      is_backslash = 0;
       line_cur++;
     } else if (ich == EOF) { // END_CHAR_CONST
       // print_cur_char('\n');
       break;
+    } else if (ch == '\\') { // Check backslash
+      print_cur_char(ch);
+      is_backslash = 1;
     } else { // CHAR_CONST
       print_cur_char(ch);
     }
