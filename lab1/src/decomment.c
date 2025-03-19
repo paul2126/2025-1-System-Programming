@@ -199,10 +199,13 @@ void string_loop() {
     } else if (ch == '\n') { // END_STRING
       print_cur_char(ch);
       line_cur++;
+    } else if (ich == EOF) { // END_STRING
+      // print_cur_char('\n');  // Print EOF
+      break;
     } else { // STRING
       print_cur_char(ch);
     }
-  } while (ich != EOF);
+  } while (1);
 }
 
 void char_const_loop() {
@@ -216,9 +219,13 @@ void char_const_loop() {
 
     if (ch == '\'') { // END_CHAR_CONST
       print_cur_char(ch);
+      break;
     } else if (ch == '\n') { // END_CHAR_CONST
       print_cur_char(ch);
       line_cur++;
+    } else if (ich == EOF) { // END_CHAR_CONST
+      // print_cur_char('\n');
+      break;
     } else { // CHAR_CONST
       print_cur_char(ch);
     }
