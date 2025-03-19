@@ -93,7 +93,7 @@ void print_cur_char(char ch) {
 
 void print_error(int line_no) {
   // Print error message
-  fprintf(stderr, "Error: line %d: unterminated comment", line_no);
+  fprintf(stderr, "Error: line %d: unterminated comment\n", line_no);
 }
 
 void single_line_comment_loop() {
@@ -141,6 +141,7 @@ void multi_line_comment_loop() {
   int ich;
   int cnt = 0;
   int is_star = 0;
+  int com_line = line_cur;
 
   // Allocate array
   int size = INITIAL_ARRAY_SIZE;
@@ -159,8 +160,8 @@ void multi_line_comment_loop() {
       print_cur_char(ch);
       is_star = 0;
     } else if (ich == EOF) { // END_ERROR
-      print_error(line_cur);
-      print_cur_char('\n'); // Print EOF
+      print_error(com_line);
+      // print_cur_char('\n'); // Print EOF
       exit(EXIT_FAILURE);
       is_star = 0;
       break;
