@@ -16,10 +16,6 @@ C-style comments from the input. */
 
 // global variable for current line number
 int line_cur = 1;
-const int got_eof = 0;
-
-// array to store the characters of the current line
-#define INITIAL_ARRAY_SIZE 1024
 
 void single_line_comment_loop();
 void multi_line_comment_loop();
@@ -30,17 +26,17 @@ void check_new_line();
 void print_error(int line_no);
 
 int main(void) {
+  /*
+  Read characters from standard input one by one and remove comments
+  from the input.
+  */
   // ich: int type variable to store character input from getchar()
   // (abbreviation of int character)
   int ich;
-  // line_com: current comment line number
-  // (abbreviation of current line and comment line)
-  // int line_com;
+
   // ch: character that comes from casting (char) on ich (abbreviation
   // of character)
   char ch;
-
-  // line_com = -1;
 
   // This while loop reads all characters from standard input one by one
   while (1) {
@@ -84,30 +80,27 @@ int main(void) {
   return (EXIT_SUCCESS);
 }
 
-void check_new_line() { line_cur++; }
+void check_new_line() {
+  /* Increament global variable line_cur by 1 */
+  line_cur++;
+}
 
 void print_cur_char(char ch) {
-  // Print character to standard output
+  /* Print character to standard output */
   fprintf(stdout, "%c", ch);
 }
 
 void print_error(int line_no) {
-  // Print error message
+  /* Print error message to stderr */
   fprintf(stderr, "Error: line %d: unterminated comment\n", line_no);
 }
 
 void single_line_comment_loop() {
+  /* Reads characters until the end of line and print a version without
+    single line comment */
   char ch;
   int ich;
   int cnt = 0;
-
-  // Allocate array
-  int size = INITIAL_ARRAY_SIZE;
-  char *char_array = malloc(size);
-  if (!char_array) {
-    perror("Memory allocation failed");
-    free(char_array);
-  }
 
   print_cur_char(' '); // Print space for single line comment
   do {
@@ -120,16 +113,7 @@ void single_line_comment_loop() {
       print_error(line_cur);
       exit(EXIT_FAILURE);
       break;
-    } else {             // SINGLE_LINE_COMMENT
-      if (cnt == size) { // Increase array size
-        size *= 2;
-        char_array = realloc(char_array, size);
-        if (!char_array) {
-          perror("Memory allocation failed");
-          free(char_array);
-        }
-      }
-      char_array[cnt++] = ch;
+    } else { // SINGLE_LINE_COMMENT
     }
   } while (1); // EOF is checked in the while loop
 
@@ -137,19 +121,15 @@ void single_line_comment_loop() {
 }
 
 void multi_line_comment_loop() {
+  /* Reads characters until the end of comment or EOF.
+  If it ends safely it prints a version without  multi line comment.
+  If it ends with EOF then it prints a version without  multi line
+  comment and error indicating error line in sterror. */
   char ch;
   int ich;
   int cnt = 0;
   int is_star = 0;
   int com_line = line_cur;
-
-  // Allocate array
-  int size = INITIAL_ARRAY_SIZE;
-  char *char_array = malloc(size);
-  if (!char_array) {
-    perror("Memory allocation failed");
-    free(char_array);
-  }
 
   print_cur_char(' '); // Print space for multi line comment
   do {
@@ -169,16 +149,7 @@ void multi_line_comment_loop() {
       is_star = 1;
     } else if (is_star == 1 && ch == '/') { // END_MULTI_LINE_COMMENT
       break;
-    } else {             // MULTI_LINE_COMMENT
-      if (cnt == size) { // Increase array size
-        size *= 2;
-        char_array = realloc(char_array, size);
-        if (!char_array) {
-          perror("Memory allocation failed");
-          free(char_array);
-        }
-      }
-      char_array[cnt++] = ch;
+    } else { // MULTI_LINE_COMMENT
       is_star = 0;
     }
   } while (1); // EOF is checked in the while loop
@@ -187,6 +158,9 @@ void multi_line_comment_loop() {
 }
 
 void string_loop() {
+  /* Reads the input and print it until the string ends
+  comments are treated as string
+  */
   char ch;
   int ich;
   print_cur_char('\"'); // Print starting double quote
@@ -199,9 +173,8 @@ void string_loop() {
       break;
     } else if (ch == '\n') { // END_STRING
       print_cur_char(ch);
-      line_cur++;
+      check_new_line();
     } else if (ich == EOF) { // END_STRING
-      // print_cur_char('\n');  // Print EOF
       break;
     } else { // STRING
       print_cur_char(ch);
@@ -210,6 +183,9 @@ void string_loop() {
 }
 
 void char_const_loop() {
+  /* Reads the input and print it until the string ends
+  comments are treated as string
+  */
   char ch;
   int ich;
   int is_backslash = 0;
@@ -225,9 +201,8 @@ void char_const_loop() {
     } else if (ch == '\n') { // END_CHAR_CONST
       print_cur_char(ch);
       is_backslash = 0;
-      line_cur++;
+      check_new_line();
     } else if (ich == EOF) { // END_CHAR_CONST
-      // print_cur_char('\n');
       break;
     } else if (ch == '\\' && is_backslash != 1) {
       // Check backslash and also two backslashes
