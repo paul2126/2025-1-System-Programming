@@ -140,6 +140,7 @@ void multi_line_comment_loop() {
   char ch;
   int ich;
   int cnt = 0;
+  int is_star = 0;
 
   // Allocate array
   int size = INITIAL_ARRAY_SIZE;
@@ -156,18 +157,17 @@ void multi_line_comment_loop() {
     if (ch == '\n') { // MULTI_LINE_COMMENT
       check_new_line();
       print_cur_char(ch);
+      is_star = 0;
     } else if (ich == EOF) { // END_ERROR
       print_error(line_cur);
+      print_cur_char('\n'); // Print EOF
       exit(EXIT_FAILURE);
+      is_star = 0;
       break;
     } else if (ch == '*') {
-      if ((ch = (char)getchar()) == '/') { // END_MULTI_LINE_COMMENT
-        break;
-      } else {
-        // print_cur_char('*');
-        // print_cur_char(ch);
-      }
-
+      is_star = 1;
+    } else if (is_star == 1 && ch == '/') { // END_MULTI_LINE_COMMENT
+      break;
     } else {             // MULTI_LINE_COMMENT
       if (cnt == size) { // Increase array size
         size *= 2;
@@ -178,6 +178,7 @@ void multi_line_comment_loop() {
         }
       }
       char_array[cnt++] = ch;
+      is_star = 0;
     }
   } while (1); // EOF is checked in the while loop
 
