@@ -1,5 +1,5 @@
 // RyuMyungHyun
-// assignmnet1
+// assignment1
 // decomment.c
 #include <assert.h>
 #include <stdio.h>
