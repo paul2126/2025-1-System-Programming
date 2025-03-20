@@ -52,7 +52,7 @@ int main(void) {
     ch = (char)ich;
     // TODO: Implement the decommenting logic
     switch (ich) {
-    case '/':                           // POSSIBLE_COMMENT
+    case '/':                           // POSSIBLE_SINGLE_LINE_COMMENT
       if (ch == '/' && is_slash == 1) { // SINGLE_LINE_COMMENT
         single_line_comment_loop();
         is_slash = 0;
@@ -61,7 +61,7 @@ int main(void) {
       }
       break;
 
-    case '*':
+    case '*':              // POSSIBLE_MULTI_LINE_COMMENT
       if (is_slash == 1) { // MULTI_LINE_COMMENT
         multi_line_comment_loop();
       } else { // GET_CHAR or slash
