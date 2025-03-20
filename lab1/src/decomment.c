@@ -28,8 +28,9 @@ void print_error(int line_no);
 int main(void) {
   /*
   Read characters from standard input one by one and remove comments
-  from the input. return EXIT_SUCCESS if the program runs successfully
-  and exit with EXIT_FAILURE if the program encounters an error.
+  from the input. return EXIT_SUCCESS if the program runs successfully.
+  Exit with EXIT_FAILURE and error line number to stderror if the
+  program encounters an error.
   */
   // ich: int type variable to store character input from getchar()
   // (abbreviation of int character)
@@ -120,13 +121,13 @@ void print_cur_char(char ch) {
 }
 
 void print_error(int line_no) {
-  /* Print error message to stderr */
+  /* Print error message to stderr along with line_no parameter */
   fprintf(stderr, "Error: line %d: unterminated comment\n", line_no);
 }
 
 void single_line_comment_loop() {
   /* Reads characters until the end of line and print a version without
-    single line comment */
+    single line comment to stdout */
   char ch;
   int ich;
 
@@ -150,9 +151,9 @@ void single_line_comment_loop() {
 
 void multi_line_comment_loop() {
   /* Reads characters until the end of comment or EOF.
-  If it ends safely it prints a version without  multi line comment.
-  If it ends with EOF then it prints a version without  multi line
-  comment and error indicating error line in sterror. */
+  If it ends safely it prints a version without  multi line comment to
+  stdout. If it ends with EOF then it prints a version without multi
+  line comment and error indicating error line in stderror. */
   char ch;
   int ich;
   int is_star = 0;
@@ -182,8 +183,8 @@ void multi_line_comment_loop() {
 }
 
 void string_loop() {
-  /* Reads the input and print it until the string ends
-  comments are treated as string
+  /* Reads the input and print it until the string ends or EOF to
+  stdout. Inside the string, comments are treated as string
   */
   char ch;
   int ich;
@@ -218,8 +219,8 @@ void string_loop() {
 }
 
 void char_const_loop() {
-  /* Reads the input and print it until the string ends
-  comments are treated as string
+  /* Reads the input and print it until the char const ends or EOF to
+  stdout. Inside the string, comments are treated as string
   */
   char ch;
   int ich;
