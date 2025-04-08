@@ -41,20 +41,8 @@ struct summary {
       blocks; ///< total number of blocks (512 byte blocks)
 };
 
-/// @brief File type
-typedef enum FileType {
-  FT_REGULAR = 0, ///< regular file
-  FT_DIRECTORY,   ///< directory
-  FT_LINK,        ///< symbolic link
-  FT_CHARACTER,   ///< character device
-  FT_BLOCK,       ///< block device
-  FT_FIFO,        ///< pipe
-  FT_SOCKET,      ///< socket
-} FileType;
-
 /// @brief abort the program with EXIT_FAILURE and an optional error
 /// message
-///
 /// @param msg optional error message or NULL
 void panic(const char *msg) {
   if (msg)
@@ -64,7 +52,6 @@ void panic(const char *msg) {
 
 /// @brief read next directory entry from open directory 'dir'. Ignores
 /// '.' and '..' entries
-///
 /// @param dir open DIR* stream
 /// @retval entry on success
 /// @retval NULL on error or if there are no more entries
@@ -136,11 +123,11 @@ void calculatePrefix(const char **pstr, unsigned int flags,
 /// @brief Calculate the suffix for the file name
 /// @param pstr Pointer to the string to be modified
 /// @param pfileName Pointer to the file name to be modified
-void calculateSuffix(const char **pstr, char **pfileName) {
+void calculateSuffix(const char **pstr, char **pfileName, int maxLen) {
   int len = strlen(*pstr) + strlen(*pfileName);
-  if (len > 54) {
+  if (len > maxLen) {
     // Calculate the available length of the file name
-    int remainingLen = 54 - strlen(*pstr);
+    int remainingLen = maxLen - strlen(*pstr);
 
     // Create a new string with the remaining length
     char *copy = malloc(remainingLen);
@@ -241,6 +228,10 @@ struct stat *calculateFileInfo(const char *path, struct stat *st,
   else if (S_ISBLK(st->st_mode))
     counts->blocks++;
 
+  // Update total size and blocks
+  counts->size += st->st_size;
+  counts->blocks += st->st_blocks;
+
   return st;
 }
 
@@ -296,11 +287,17 @@ char *calculateVerbose(struct stat *st) {
 /// @param flags output control flags (F_*)
 void processDir(const char *dn, const char *pstr, struct summary *stats,
                 unsigned int flags) {
+  // Print default state
+  // Get the directory name
+  if (strlen(pstr) <= 2) { // Only the base directory
+    printf("%s\n", dn);
+  }
+
   // Open directory
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
     calculatePrefix(&pstr, flags, 1);
-    printf("%sError: Permission denied\n", pstr);
+    printf("%sERROR: Permission denied\n", pstr);
     free((char *)pstr);
     return;
   }
@@ -310,18 +307,10 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
     calculatePrefix(&pstr, flags, 0);
-    printf("%sError: Permission denied\n", pstr);
+    printf("%sERROR: Permission denied\n", pstr);
     free((char *)pstr);
     closedir(curDir);
     return;
-  }
-
-  // Print default state
-  // Get the directory name
-  // const char *last_slash = strrchr(dn, '/');
-  if (strlen(pstr) <= 2) { // Only the base directory
-    // printf("%s\n", last_slash + 1);
-    printf("%s\n", dn);
   }
 
   for (int i = 0; i < dircnt; i++) {
@@ -340,23 +329,24 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       // const char *temp = strdup(pstr);
       // free((char *)pstr);
       // pstr = temp;
-      calculateSuffix(&pstr, &entryName);
+      calculateSuffix(&pstr, &entryName, 54);
+
+      // Calculate the file info
+      struct stat st;
+      // Entry path
+      char *entryPath = malloc(strlen(dn) + strlen(entry->d_name) + 2);
+      snprintf(entryPath, strlen(dn) + strlen(entry->d_name) + 2,
+               "%s/%s", dn, entry->d_name);
+
+      if (calculateFileInfo(entryPath, &st, stats) == NULL) {
+        free(entryPath);
+        free(entryName);
+        free((char *)pstr);
+        perror("calculateFileInfo");
+        continue;
+      }
 
       if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
-        struct stat st;
-        // Entry path
-        char *entryPath =
-            malloc(strlen(dn) + strlen(entry->d_name) + 2);
-        snprintf(entryPath, strlen(dn) + strlen(entry->d_name) + 2,
-                 "%s/%s", dn, entry->d_name);
-
-        if (calculateFileInfo(entryPath, &st, stats) == NULL) {
-          free(entryPath);
-          free(entryName);
-          free((char *)pstr);
-          perror("calculateFileInfo");
-          continue;
-        }
         // Combine pstr and entryName
         char *pathNameResult =
             malloc(strlen(pstr) + strlen(entryName) + 1);
@@ -366,7 +356,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         char *verboseResult = calculateVerbose(&st);
         printf("%-54s", pathNameResult);
         printf("%s\n", verboseResult);
-      } else {
+      } else { // default
         // Print the entry name
         printf("%s%s\n", pstr, entryName);
       }
@@ -442,12 +432,77 @@ void syntax(const char *argv0, const char *error, ...) {
   exit(EXIT_FAILURE);
 }
 
+/// @brief Format according to grammar and save to output
+/// @param files
+/// @param dirs
+/// @param links
+/// @param pipes
+/// @param sockets
+/// @param output
+void format_counts(char *output, int files, int dirs, int links,
+                   int pipes, int sockets, size_t size) {
+  snprintf(output, size, "%d %s, %d %s, %d %s, %d %s, and %d %s", files,
+           files == 1 ? "file" : "files", dirs,
+           dirs == 1 ? "directory" : "directories", links,
+           links == 1 ? "link" : "links", pipes,
+           pipes == 1 ? "pipe" : "pipes", sockets,
+           sockets == 1 ? "socket" : "sockets");
+}
+
+void calculateSummary(unsigned int flags, struct summary *tstat,
+                      const char *directories, int i) {
+  // Header
+  if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
+    printf("Name                                                     "
+           "   User:Group           Size    Blocks Type\n");
+    printf("---------------------------------------------------------"
+           "-------------------------------------------\n");
+  } else {
+    printf("Name\n");
+    printf("---------------------------------------------------------"
+           "-------------------------------------------\n");
+  }
+  // Body
+  if ((flags & F_TREE) == F_TREE) {
+    processDir(directories, "| ", tstat, flags);
+  } else {
+    processDir(directories, "  ", tstat, flags);
+  }
+
+  // Footer
+  printf("---------------------------------------------------------"
+         "-------------------------------------------\n");
+  // calculate summary
+  char *summaryOutput = malloc(100);
+  const char *empty = "";
+  format_counts(summaryOutput, tstat->files, tstat->dirs, tstat->links,
+                tstat->fifos, tstat->socks, 100);
+  calculateSuffix(&empty, &summaryOutput, 68);
+  printf("%-68s", summaryOutput);
+
+  if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
+    // Convert total size and total blocks to strings
+    char totalSizeStr[32];
+    snprintf(totalSizeStr, sizeof(totalSizeStr), "%lld",
+             (long long)tstat->size);
+
+    char totalBlocksStr[32];
+    snprintf(totalBlocksStr, sizeof(totalBlocksStr), "%lld",
+             (long long)tstat->blocks);
+    char *totalSize = alignRight(totalSizeStr, 14);
+    char *totalBlocks = alignRight(totalBlocksStr, 9);
+    printf("   %s %s\n\n", totalSize, totalBlocks);
+  }
+}
+
 /// @brief program entry point
 int main(int argc, char *argv[]) {
   // default directory is the current directory (".")
   const char CURDIR[] = ".";
   const char *directories[MAX_DIR];
   int ndir = 0;
+  unsigned int files = 0, dirs = 0, links = 0, fifos = 0, socks = 0;
+  unsigned long long size = 0, blocks = 0;
 
   struct summary tstat;
   unsigned int flags = 0;
@@ -482,43 +537,84 @@ int main(int argc, char *argv[]) {
   if (ndir == 0)
     directories[ndir++] = CURDIR;
 
-  // process each directory
-  //
-  // TODO
-  //
-  // Pseudo-code
-  // - reset statistics (tstat)
-  // - loop over all entries in 'directories' (number of entires
-  // stored in 'ndir')
-  //   - reset statistics (dstat)
-  //   - if F_SUMMARY flag set: print header
-  //   - print directory name
-  //   - call processDir() for the directory
-  //   - if F_SUMMARY flag set: print summary & update statistics
   memset(&tstat, 0, sizeof(tstat));
 
   for (int i = 0; i < ndir; i++) {
     if (flags == 0) { // no flags
       processDir(directories[i], "  ", &tstat, flags);
-    } else if (flags & F_TREE) { // -t
+    } else if (flags == F_TREE) { // -t
       processDir(directories[i], "| ", &tstat, flags);
-    } else if (flags & F_VERBOSE) { // -v
-      printf("Analyzing directory '%s':\n", directories[i]);
-    } else if (flags & F_SUMMARY) { // -s
-      printf("Analyzing directory '%s':\n", directories[i]);
-    } else if ((flags & (F_TREE | F_SUMMARY)) ==
-               (F_TREE | F_SUMMARY)) { // -t -s
-      printf("Analyzing directory '%s':\n", directories[i]);
-    } else if ((flags & (F_VERBOSE | F_TREE)) ==
-               (F_VERBOSE | F_TREE)) { // -v -t
-      printf("Analyzing directory '%s':\n", directories[i]);
-    } else if ((flags & (F_VERBOSE | F_SUMMARY)) ==
-               (F_VERBOSE | F_SUMMARY)) { // -v -s
-      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if (flags == F_VERBOSE) { // -v
+      processDir(directories[i], "  ", &tstat, flags);
+    } else if (flags == F_SUMMARY) { // -s
+      calculateSummary(flags, &tstat, directories[i], i);
+      // printf("Name\n");
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n");
+      // processDir(directories[i], "  ", &tstat, flags);
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n");
+      // // calculate summary
+      // char *summaryOutput = malloc(100);
+      // const char *empty = "";
+      // format_counts(summaryOutput, tstat.files, tstat.dirs,
+      // tstat.links,
+      //               tstat.fifos, tstat.socks, 100);
+      // calculateSuffix(&empty, &summaryOutput, 68);
+      // printf("%-68s\n\n", summaryOutput);
+
     } else if ((flags & (F_VERBOSE | F_TREE | F_SUMMARY)) ==
                (F_VERBOSE | F_TREE | F_SUMMARY)) { // -v -t -s
-      printf("Analyzing directory '%s':\n", directories[i]);
+      calculateSummary(flags, &tstat, directories[i], i);
+
+      // printf("Name "
+      //        "   User:Group           Size    Blocks Type\n");
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n");
+      // processDir(directories[i], "| ", &tstat, flags);
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n\n");
+    } else if ((flags & (F_TREE | F_SUMMARY)) ==
+               (F_TREE | F_SUMMARY)) { // -t -s
+      calculateSummary(flags, &tstat, directories[i], i);
+
+      // printf("Name\n");
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n");
+      // printf("Analyzing directory '%s':\n", directories[i]);
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n\n");
+    } else if ((flags & (F_VERBOSE | F_TREE)) ==
+               (F_VERBOSE | F_TREE)) { // -v -t
+      processDir(directories[i], "| ", &tstat, flags);
+    } else if ((flags & (F_VERBOSE | F_SUMMARY)) ==
+               (F_VERBOSE | F_SUMMARY)) { // -v -s
+      calculateSummary(flags, &tstat, directories[i], i);
+
+      // printf("Name "
+      //        "   User:Group           Size    Blocks Type\n");
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n");
+      // printf("Analyzing directory '%s':\n", directories[i]);
+      // printf("---------------------------------------------------------"
+      //        "-------------------------------------------\n\n");
     }
+    // save to local variable and reset statistics. Don't reset size and
+    // blocks
+    files += tstat.files;
+    dirs += tstat.dirs;
+    links += tstat.links;
+    fifos += tstat.fifos;
+    socks += tstat.socks;
+    size += tstat.size;
+    blocks += tstat.blocks;
+    tstat.files = 0;
+    tstat.dirs = 0;
+    tstat.links = 0;
+    tstat.fifos = 0;
+    tstat.socks = 0;
+    tstat.size = 0;
+    tstat.blocks = 0;
   }
 
   // print grand total
@@ -529,13 +625,12 @@ int main(int argc, char *argv[]) {
            "  total # of links:        %16d\n"
            "  total # of pipes:        %16d\n"
            "  total # of sockets:      %16d\n",
-           ndir, tstat.files, tstat.dirs, tstat.links, tstat.fifos,
-           tstat.socks);
+           ndir, files, dirs, links, fifos, socks);
 
     if (flags & F_VERBOSE) {
       printf("  total file size:         %16llu\n"
              "  total # of blocks:       %16llu\n",
-             tstat.size, tstat.blocks);
+             size, blocks);
     }
   }
   return EXIT_SUCCESS;
