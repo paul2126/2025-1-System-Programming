@@ -212,7 +212,7 @@ struct stat *calculateFileInfo(const char *path, struct stat *st,
                                struct summary *counts) {
   // Get file information using lstat. dont follow links
   if (lstat(path, st) == -1) {
-    perror("lstat");
+    fprintf(stderr, "ERROR: %s", strerror(errno));
     return NULL;
   }
   if (S_ISREG(st->st_mode))
@@ -297,7 +297,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
     calculatePrefix(&pstr, flags, 1);
-    printf("%sERROR: Permission denied\n", pstr);
+    fprintf(stderr, "ERROR: %s", strerror(errno));
     free((char *)pstr);
     return;
   }
@@ -307,7 +307,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
     calculatePrefix(&pstr, flags, 0);
-    printf("%sERROR: Permission denied\n", pstr);
+    fprintf(stderr, "ERROR: %s", strerror(errno));
     free((char *)pstr);
     closedir(curDir);
     return;
@@ -342,7 +342,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         free(entryPath);
         free(entryName);
         free((char *)pstr);
-        perror("calculateFileInfo");
+        fprintf(stderr, "ERROR: %s", strerror(errno));
         continue;
       }
 
