@@ -9,11 +9,11 @@
             // "args": [],
             // "program": "/bin/bash",
             "args": [
-                "${fileDirname}/tools/demo"
+                "-t", "../tools/demo"
             ],
             "preLaunchTask": "gcc build active file",
             "stopAtEntry": false,
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/src",
             "environment": [],
             "externalConsole": false,
             "MIMode": "gdb",
