@@ -478,7 +478,11 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
   format_counts(summaryOutput, tstat->files, tstat->dirs, tstat->links,
                 tstat->fifos, tstat->socks, 100);
   calculateSuffix(&empty, &summaryOutput, 68);
-  printf("%-68s", summaryOutput);
+  if ((flags & (F_SUMMARY | F_VERBOSE)) == (F_SUMMARY | F_VERBOSE)) {
+    printf("%-68s", summaryOutput);
+  } else {
+    printf("%-68s\n\n", summaryOutput);
+  }
 
   if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
     // Convert total size and total blocks to strings
@@ -548,56 +552,18 @@ int main(int argc, char *argv[]) {
       processDir(directories[i], "  ", &tstat, flags);
     } else if (flags == F_SUMMARY) { // -s
       calculateSummary(flags, &tstat, directories[i], i);
-      // printf("Name\n");
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n");
-      // processDir(directories[i], "  ", &tstat, flags);
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n");
-      // // calculate summary
-      // char *summaryOutput = malloc(100);
-      // const char *empty = "";
-      // format_counts(summaryOutput, tstat.files, tstat.dirs,
-      // tstat.links,
-      //               tstat.fifos, tstat.socks, 100);
-      // calculateSuffix(&empty, &summaryOutput, 68);
-      // printf("%-68s\n\n", summaryOutput);
-
     } else if ((flags & (F_VERBOSE | F_TREE | F_SUMMARY)) ==
                (F_VERBOSE | F_TREE | F_SUMMARY)) { // -v -t -s
       calculateSummary(flags, &tstat, directories[i], i);
-
-      // printf("Name "
-      //        "   User:Group           Size    Blocks Type\n");
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n");
-      // processDir(directories[i], "| ", &tstat, flags);
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n\n");
     } else if ((flags & (F_TREE | F_SUMMARY)) ==
                (F_TREE | F_SUMMARY)) { // -t -s
       calculateSummary(flags, &tstat, directories[i], i);
-
-      // printf("Name\n");
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n");
-      // printf("Analyzing directory '%s':\n", directories[i]);
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n\n");
     } else if ((flags & (F_VERBOSE | F_TREE)) ==
                (F_VERBOSE | F_TREE)) { // -v -t
       processDir(directories[i], "| ", &tstat, flags);
     } else if ((flags & (F_VERBOSE | F_SUMMARY)) ==
                (F_VERBOSE | F_SUMMARY)) { // -v -s
       calculateSummary(flags, &tstat, directories[i], i);
-
-      // printf("Name "
-      //        "   User:Group           Size    Blocks Type\n");
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n");
-      // printf("Analyzing directory '%s':\n", directories[i]);
-      // printf("---------------------------------------------------------"
-      //        "-------------------------------------------\n\n");
     }
     // save to local variable and reset statistics. Don't reset size and
     // blocks
