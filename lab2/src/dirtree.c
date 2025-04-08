@@ -102,6 +102,7 @@ void replace_char(const char **pstr, char target, char replacement) {
       *p = replacement;
     }
   }
+
   *pstr = copy;
   // printf("Modified: %s\n", copy);s
 }
@@ -115,6 +116,7 @@ void calculatePrefix(const char **pstr, unsigned int flags,
                      int isLastEntry) {
   char *prefix = malloc(strlen(*pstr) + 1);
   replace_char(pstr, '-', ' ');
+  replace_char(pstr, '`', ' ');
   // printf("Prefix: %s\n", *pstr);
   strcpy(prefix, *pstr);
 
@@ -128,6 +130,9 @@ void calculatePrefix(const char **pstr, unsigned int flags,
       prefix[strlen(*pstr) - 2] = '`'; // "`" for tree view
     }
   }
+
+  // Free old pstr memory
+  free((char *)*pstr);
   *pstr = prefix;
 }
 
@@ -148,6 +153,9 @@ void calculateSuffix(const char **pstr, char **pfileName) {
     copy[remainingLen - 1] = '.';
     copy[remainingLen - 2] = '.';
     copy[remainingLen - 3] = '.';
+
+    // Free old pfileName memory
+    free(*pfileName);
 
     *pfileName = copy;
   }
@@ -191,7 +199,8 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Open directory
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
-    perror("opendir");
+    calculatePrefix(&pstr, flags, 1);
+    printf("%sError: Permission denied\n", pstr);
     return;
   }
   // Entries to save the file in the directory
@@ -199,7 +208,8 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Read and get number of entries
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
-    perror("scandir");
+    calculatePrefix(&pstr, flags, 0);
+    printf("%sError: Permission denied\n", pstr);
     closedir(curDir);
     return;
   }
@@ -214,6 +224,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
 
   for (int i = 0; i < dircnt; i++) {
     struct dirent *entry = entries[i];
+    free(entries[i]); // Free the entry
     if (strcmp(entry->d_name, ".") == 0 ||
         strcmp(entry->d_name, "..") == 0) { // Ignore "./.."
       continue;
@@ -226,21 +237,32 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       calculateSuffix(&pstr, &entryName);
       // Print the entry name
       printf("%s%s\n", pstr, entryName);
+      // Free the entry name
+      free(entryName);
 
       if (entry->d_type == DT_DIR) { // If entry is a directory
         // Update subdirectory path
         char *subDirPath =
             malloc(strlen(dn) + strlen(entry->d_name) + 2);
-        sprintf(subDirPath, "%s/%s", dn, entry->d_name);
+        snprintf(subDirPath, strlen(dn) + strlen(entry->d_name) + 2,
+                 "%s/%s", dn, entry->d_name);
+
+        // Make a copy of subDirPath to pass to processDir
+        // char *subDirPathCopy = strdup(subDirPath);
+
         // Increase prefix length
-        char *subDirPrefix = malloc(strlen(pstr) + 2);
-        sprintf(subDirPrefix, "%s  ", pstr);
+        char *subDirPrefix = malloc(strlen(pstr) + 3);
+        snprintf(subDirPrefix, strlen(pstr) + 3, "%s  ", pstr);
 
         processDir(subDirPath, subDirPrefix, stats, flags);
+        // free(subDirPathCopy); // Free the copy after processDir
+
         free(subDirPath);
+        free(subDirPrefix);
       }
     }
   }
+  free(entries); // Free the entries
   closedir(curDir);
 }
 
