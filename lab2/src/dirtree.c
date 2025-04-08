@@ -106,6 +106,10 @@ void replace_char(const char **pstr, char target, char replacement) {
   // printf("Modified: %s\n", copy);s
 }
 
+/// @brief Calculate the prefix for the tree view
+/// @param pstr
+/// @param flags
+/// @param isLastEntry
 void calculatePrefix(const char **pstr, unsigned int flags,
                      int isLastEntry) {
   char *prefix = malloc(strlen(*pstr) + 1);
@@ -124,6 +128,25 @@ void calculatePrefix(const char **pstr, unsigned int flags,
     }
   }
   *pstr = prefix;
+}
+
+void calculateSuffix(const char **pstr, char **fileName) {
+  int len = strlen(*pstr) + strlen(*fileName);
+  if (len > 54) {
+    // Calculate the available length of the file name
+    int remainingLen = 54 - strlen(*pstr);
+
+    // Create a new string with the remaining length
+    char *copy = malloc(remainingLen);
+    strncpy(copy, *fileName, remainingLen);
+
+    // Add suffic
+    copy[remainingLen - 1] = '.';
+    copy[remainingLen - 2] = '.';
+    copy[remainingLen - 3] = '.';
+
+    *fileName = copy;
+  }
 }
 
 /// @brief qsort comparator to sort directory entries. Sorted by name,
@@ -180,10 +203,10 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Print default state
   // Get the directory name
   // const char *last_slash = strrchr(dn, '/');
-  // if (strlen(pstr) <= 2) { // Only the base directory
-  //   printf("%s\n", last_slash + 1);
-  // }
-  printf("%s\n", dn);
+  if (strlen(pstr) <= 2) { // Only the base directory
+    // printf("%s\n", last_slash + 1);
+    printf("%s\n", dn);
+  }
 
   for (int i = 0; i < dircnt; i++) {
     struct dirent *entry = entries[i];
@@ -194,13 +217,19 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       // Update prefix
       calculatePrefix(&pstr, flags, i == dircnt - 1);
       // Print the entry name
-      printf("%s%s\n", pstr, entry->d_name);
+      char *entryName = malloc(strlen(entry->d_name) + 1);
+      strcpy(entryName, entry->d_name);
+      // Update suffix
+      calculateSuffix(&pstr, &entryName);
+      printf("%s%s\n", pstr, entryName);
 
       if (entry->d_type == DT_DIR) { // If entry is a directory
+        // Update subdirectory path
         char *subDirPath =
             malloc(strlen(dn) + strlen(entry->d_name) + 2);
-        char *subDirPrefix = malloc(strlen(pstr) + 2);
         sprintf(subDirPath, "%s/%s", dn, entry->d_name);
+        // Increase prefix length
+        char *subDirPrefix = malloc(strlen(pstr) + 2);
         sprintf(subDirPrefix, "%s  ", pstr);
 
         processDir(subDirPath, subDirPrefix, stats, flags);
