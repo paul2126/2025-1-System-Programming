@@ -247,15 +247,11 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         snprintf(subDirPath, strlen(dn) + strlen(entry->d_name) + 2,
                  "%s/%s", dn, entry->d_name);
 
-        // Make a copy of subDirPath to pass to processDir
-        // char *subDirPathCopy = strdup(subDirPath);
-
         // Increase prefix length
         char *subDirPrefix = malloc(strlen(pstr) + 3);
         snprintf(subDirPrefix, strlen(pstr) + 3, "%s  ", pstr);
 
         processDir(subDirPath, subDirPrefix, stats, flags);
-        // free(subDirPathCopy); // Free the copy after processDir
 
         free(subDirPath);
         free(subDirPrefix);
