@@ -93,6 +93,39 @@ struct dirent *getNext(DIR *dir) {
   return next;
 }
 
+void replace_char(const char **pstr, char target, char replacement) {
+  char *copy = malloc(strlen(*pstr) + 1);
+  strcpy(copy, *pstr);
+
+  for (char *p = copy; *p != '\0'; p++) {
+    if (*p == target) {
+      *p = replacement;
+    }
+  }
+  *pstr = copy;
+  // printf("Modified: %s\n", copy);s
+}
+
+void calculatePrefix(const char **pstr, unsigned int flags,
+                     int isLastEntry) {
+  char *prefix = malloc(strlen(*pstr) + 1);
+  replace_char(pstr, '-', ' ');
+  // printf("Prefix: %s\n", *pstr);
+  strcpy(prefix, *pstr);
+
+  if ((flags & F_TREE) == F_TREE) {
+    prefix[strlen(*pstr) - 1] = '-'; // "-" for tree view
+    if (strlen(*pstr) > 2) {
+      // "|" only when it is not base directory
+      prefix[strlen(*pstr) - 2] = '|';
+    }
+    if (isLastEntry) {                 // last entry
+      prefix[strlen(*pstr) - 2] = '`'; // "`" for tree view
+    }
+  }
+  *pstr = prefix;
+}
+
 /// @brief qsort comparator to sort directory entries. Sorted by name,
 /// directories first.
 ///
@@ -146,10 +179,11 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
 
   // Print default state
   // Get the directory name
-  const char *last_slash = strrchr(dn, '/');
-  if (strlen(pstr) == 2) { // Only the base directory
-    printf("%s\n", last_slash + 1);
-  }
+  // const char *last_slash = strrchr(dn, '/');
+  // if (strlen(pstr) <= 2) { // Only the base directory
+  //   printf("%s\n", last_slash + 1);
+  // }
+  printf("%s\n", dn);
 
   for (int i = 0; i < dircnt; i++) {
     struct dirent *entry = entries[i];
@@ -157,6 +191,8 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         strcmp(entry->d_name, "..") == 0) { // Ignore "./.."
       continue;
     } else {
+      // Update prefix
+      calculatePrefix(&pstr, flags, i == dircnt - 1);
       // Print the entry name
       printf("%s%s\n", pstr, entry->d_name);
 
@@ -171,9 +207,8 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         free(subDirPath);
       }
     }
-    closedir(curDir);
-    // TODO
   }
+  closedir(curDir);
 }
 
 /// @brief print program syntax and an optional error message. Aborts
@@ -273,8 +308,27 @@ int main(int argc, char *argv[]) {
   memset(&tstat, 0, sizeof(tstat));
 
   for (int i = 0; i < ndir; i++) {
-    processDir(directories[i], "  ", &tstat, flags);
-    // testing purpose (default case)
+    if (flags == 0) { // no flags
+      processDir(directories[i], "  ", &tstat, flags);
+    } else if (flags & F_TREE) { // -t
+      processDir(directories[i], "| ", &tstat, flags);
+    } else if (flags & F_VERBOSE) { // -v
+      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if (flags & F_SUMMARY) { // -s
+      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if ((flags & (F_TREE | F_SUMMARY)) ==
+               (F_TREE | F_SUMMARY)) { // -t -s
+      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if ((flags & (F_VERBOSE | F_TREE)) ==
+               (F_VERBOSE | F_TREE)) { // -v -t
+      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if ((flags & (F_VERBOSE | F_SUMMARY)) ==
+               (F_VERBOSE | F_SUMMARY)) { // -v -s
+      printf("Analyzing directory '%s':\n", directories[i]);
+    } else if ((flags & (F_VERBOSE | F_TREE | F_SUMMARY)) ==
+               (F_VERBOSE | F_TREE | F_SUMMARY)) { // -v -t -s
+      printf("Analyzing directory '%s':\n", directories[i]);
+    }
   }
 
   // print grand total
