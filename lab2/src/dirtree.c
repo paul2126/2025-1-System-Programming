@@ -30,8 +30,8 @@
 
 /// @brief struct holding the summary
 struct summary {
-  unsigned int dirs;  ///< number of directories encountered
   unsigned int files; ///< number of files
+  unsigned int dirs;  ///< number of directories encountered
   unsigned int links; ///< number of links
   unsigned int fifos; ///< number of pipes
   unsigned int socks; ///< number of sockets
@@ -51,15 +51,6 @@ typedef enum FileType {
   FT_FIFO,        ///< pipe
   FT_SOCKET,      ///< socket
 } FileType;
-
-/// @brief Struct holding the file info
-typedef struct FileInfo {
-  char name[256];             ///< file name
-  char *path;                 ///< absolute path
-  FileType type;              ///< file type
-  struct FileInfo **children; ///< pointer to subdirectories
-  int nchildren;              ///< number of subdirectories
-} FileInfo;
 
 /// @brief abort the program with EXIT_FAILURE and an optional error
 /// message
@@ -114,10 +105,16 @@ void replace_char(const char **pstr, char target, char replacement) {
 /// @param isLastEntry 1 if the entry is the last entry in the directory
 void calculatePrefix(const char **pstr, unsigned int flags,
                      int isLastEntry) {
-  char *prefix = malloc(strlen(*pstr) + 1);
   replace_char(pstr, '-', ' ');
+  // Prevent memory leak
+  char *temp = strdup(*pstr);
+  free((char *)*pstr);
+  *pstr = temp;
   replace_char(pstr, '`', ' ');
+  free((char *)temp);
+
   // printf("Prefix: %s\n", *pstr);
+  char *prefix = malloc(strlen(*pstr) + 1);
   strcpy(prefix, *pstr);
 
   if ((flags & F_TREE) == F_TREE) {
@@ -188,6 +185,109 @@ static int dirent_compare(const struct dirent **a,
   return strcmp(e1->d_name, e2->d_name);
 }
 
+char *alignRight(const char *src, int width) {
+  char *buf = malloc(width + 1);
+  if (!buf)
+    return NULL;
+
+  size_t len = strlen(src); // Length of the source string
+  int padding = width - len;
+  if (padding < 0)
+    padding = 0;
+
+  memset(buf, ' ', padding);                    // Fill with spaces
+  strncpy(buf + padding, src, width - padding); // Slide by +padding
+  buf[width] = '\0';
+  return buf;
+}
+
+char *alignLeft(const char *src, int width) {
+  char *buf = malloc(width + 1);
+  if (!buf)
+    return NULL;
+
+  size_t len = strlen(src);
+  strncpy(buf, src, width);
+  if (len < width) { // If the string is shorter than the width
+    memset(buf + len, ' ', width - len); // Fill remainder with spaces
+  }
+  buf[width] = '\0';
+  return buf;
+}
+
+/// @brief Get file information for a given path and update summary
+/// @param path Absolute or relative path string
+/// @param st Pointer to a stat structure to store file information
+/// @param counts Pointer to a summary structure to store file
+/// information
+/// @return Pointer to the stat structure on success, NULL on error
+struct stat *calculateFileInfo(const char *path, struct stat *st,
+                               struct summary *counts) {
+  // Get file information using lstat. dont follow links
+  if (lstat(path, st) == -1) {
+    perror("lstat");
+    return NULL;
+  }
+  if (S_ISREG(st->st_mode))
+    counts->files++;
+  else if (S_ISDIR(st->st_mode))
+    counts->dirs++;
+  else if (S_ISLNK(st->st_mode))
+    counts->links++;
+  else if (S_ISFIFO(st->st_mode))
+    counts->fifos++;
+  else if (S_ISSOCK(st->st_mode))
+    counts->socks++;
+  else if (S_ISBLK(st->st_mode))
+    counts->blocks++;
+
+  return st;
+}
+
+char *calculateVerbose(struct stat *st) {
+  char *verboseResult = malloc(46);
+  struct passwd *pw = getpwuid(st->st_uid);
+  struct group *gr = getgrgid(st->st_gid);
+  char *userName = NULL;
+  char *groupName = NULL;
+  char *fileSize = NULL;
+  char *fileBlocks = NULL;
+
+  // Format strings. Null terminated
+  char *fileType = " ";
+  if (S_ISREG(st->st_mode)) {
+    fileType = " ";
+  } else if (S_ISDIR(st->st_mode)) {
+    fileType = "d";
+  } else if (S_ISLNK(st->st_mode)) {
+    fileType = "l";
+  } else if (S_ISCHR(st->st_mode)) {
+    fileType = "c";
+  } else if (S_ISBLK(st->st_mode)) {
+    fileType = "b";
+  } else if (S_ISFIFO(st->st_mode)) {
+    fileType = "f";
+  } else if (S_ISSOCK(st->st_mode)) {
+    fileType = "s";
+  }
+  // Convert size and blocks to strings
+  char sizeStr[32];
+  snprintf(sizeStr, sizeof(sizeStr), "%lld", (long long)st->st_size);
+
+  char blocksStr[32];
+  snprintf(blocksStr, sizeof(blocksStr), "%lld",
+           (long long)st->st_blocks);
+
+  userName = alignRight(pw ? pw->pw_name : "?", 8);
+  groupName = alignLeft(gr ? gr->gr_name : "?", 8);
+  fileSize = alignRight(sizeStr, 10);
+  fileBlocks = alignRight(blocksStr, 8);
+
+  snprintf(verboseResult, 46, "  %s:%s  %s  %s  %s", userName,
+           groupName, fileSize, fileBlocks, fileType);
+  return verboseResult;
+}
+
 /// @brief recursively process directory @a dn and print its tree
 ///
 /// @param dn absolute or relative path string
@@ -201,6 +301,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   if (curDir == NULL) { // open directory failed
     calculatePrefix(&pstr, flags, 1);
     printf("%sError: Permission denied\n", pstr);
+    free((char *)pstr);
     return;
   }
   // Entries to save the file in the directory
@@ -210,6 +311,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   if (dircnt < 0) { // read directory failed
     calculatePrefix(&pstr, flags, 0);
     printf("%sError: Permission denied\n", pstr);
+    free((char *)pstr);
     closedir(curDir);
     return;
   }
@@ -224,9 +326,9 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
 
   for (int i = 0; i < dircnt; i++) {
     struct dirent *entry = entries[i];
-    free(entries[i]); // Free the entry
     if (strcmp(entry->d_name, ".") == 0 ||
         strcmp(entry->d_name, "..") == 0) { // Ignore "./.."
+      free(entries[i]);
       continue;
     } else {
       // Copy the entry name
@@ -234,9 +336,43 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       strcpy(entryName, entry->d_name);
 
       calculatePrefix(&pstr, flags, i == dircnt - 1);
+      // Memory leak here pstr
+      // const char *temp = strdup(pstr);
+      // free((char *)pstr);
+      // pstr = temp;
       calculateSuffix(&pstr, &entryName);
+
+      if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
+        struct stat st;
+        // Entry path
+        char *entryPath =
+            malloc(strlen(dn) + strlen(entry->d_name) + 2);
+        snprintf(entryPath, strlen(dn) + strlen(entry->d_name) + 2,
+                 "%s/%s", dn, entry->d_name);
+
+        if (calculateFileInfo(entryPath, &st, stats) == NULL) {
+          free(entryPath);
+          free(entryName);
+          free((char *)pstr);
+          perror("calculateFileInfo");
+          continue;
+        }
+        // Combine pstr and entryName
+        char *pathNameResult =
+            malloc(strlen(pstr) + strlen(entryName) + 1);
+        snprintf(pathNameResult, strlen(pstr) + strlen(entryName) + 1,
+                 "%s%s", pstr, entryName);
+        // Create verbose result
+        char *verboseResult = calculateVerbose(&st);
+        printf("%-54s", pathNameResult);
+        printf("%s\n", verboseResult);
+      } else {
+        // Print the entry name
+        printf("%s%s\n", pstr, entryName);
+      }
+
       // Print the entry name
-      printf("%s%s\n", pstr, entryName);
+      // printf("%s%s\n", pstr, entryName);
       // Free the entry name
       free(entryName);
 
@@ -257,8 +393,11 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         free(subDirPrefix);
       }
     }
+    // Free the entry
+    free(entries[i]);
   }
-  free(entries); // Free the entries
+  free((char *)pstr); // Free the prefix
+  free(entries);      // Free the entries
   closedir(curDir);
 }
 
