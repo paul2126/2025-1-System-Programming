@@ -107,9 +107,10 @@ void replace_char(const char **pstr, char target, char replacement) {
 }
 
 /// @brief Calculate the prefix for the tree view
-/// @param pstr
-/// @param flags
-/// @param isLastEntry
+/// @param pstr Pointer to the string to be modified
+/// @param flags Output control flags (F_*). If F_TREE is set, the
+/// prefix is modified to be suitable for tree view
+/// @param isLastEntry 1 if the entry is the last entry in the directory
 void calculatePrefix(const char **pstr, unsigned int flags,
                      int isLastEntry) {
   char *prefix = malloc(strlen(*pstr) + 1);
@@ -130,22 +131,25 @@ void calculatePrefix(const char **pstr, unsigned int flags,
   *pstr = prefix;
 }
 
-void calculateSuffix(const char **pstr, char **fileName) {
-  int len = strlen(*pstr) + strlen(*fileName);
+/// @brief Calculate the suffix for the file name
+/// @param pstr Pointer to the string to be modified
+/// @param pfileName Pointer to the file name to be modified
+void calculateSuffix(const char **pstr, char **pfileName) {
+  int len = strlen(*pstr) + strlen(*pfileName);
   if (len > 54) {
     // Calculate the available length of the file name
     int remainingLen = 54 - strlen(*pstr);
 
     // Create a new string with the remaining length
     char *copy = malloc(remainingLen);
-    strncpy(copy, *fileName, remainingLen);
+    strncpy(copy, *pfileName, remainingLen);
 
     // Add suffic
     copy[remainingLen - 1] = '.';
     copy[remainingLen - 2] = '.';
     copy[remainingLen - 3] = '.';
 
-    *fileName = copy;
+    *pfileName = copy;
   }
 }
 
@@ -214,13 +218,13 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         strcmp(entry->d_name, "..") == 0) { // Ignore "./.."
       continue;
     } else {
-      // Update prefix
-      calculatePrefix(&pstr, flags, i == dircnt - 1);
-      // Print the entry name
+      // Copy the entry name
       char *entryName = malloc(strlen(entry->d_name) + 1);
       strcpy(entryName, entry->d_name);
-      // Update suffix
+
+      calculatePrefix(&pstr, flags, i == dircnt - 1);
       calculateSuffix(&pstr, &entryName);
+      // Print the entry name
       printf("%s%s\n", pstr, entryName);
 
       if (entry->d_type == DT_DIR) { // If entry is a directory
