@@ -41,6 +41,26 @@ struct summary {
       blocks; ///< total number of blocks (512 byte blocks)
 };
 
+/// @brief File type
+typedef enum FileType {
+  FT_REGULAR = 0, ///< regular file
+  FT_DIRECTORY,   ///< directory
+  FT_LINK,        ///< symbolic link
+  FT_CHARACTER,   ///< character device
+  FT_BLOCK,       ///< block device
+  FT_FIFO,        ///< pipe
+  FT_SOCKET,      ///< socket
+} FileType;
+
+/// @brief Struct holding the file info
+typedef struct FileInfo {
+  char name[256];             ///< file name
+  char *path;                 ///< absolute path
+  FileType type;              ///< file type
+  struct FileInfo **children; ///< pointer to subdirectories
+  int nchildren;              ///< number of subdirectories
+} FileInfo;
+
 /// @brief abort the program with EXIT_FAILURE and an optional error
 /// message
 ///
@@ -81,9 +101,12 @@ struct dirent *getNext(DIR *dir) {
 /// @retval -1 if a<b
 /// @retval 0  if a==b
 /// @retval 1  if a>b
-static int dirent_compare(const void *a, const void *b) {
-  struct dirent *e1 = (struct dirent *)a;
-  struct dirent *e2 = (struct dirent *)b;
+static int dirent_compare(const struct dirent **a,
+                          const struct dirent **b) {
+  // struct dirent *e1 = (struct dirent *)a;
+  // struct dirent *e2 = (struct dirent *)b;
+  const struct dirent *e1 = *a;
+  const struct dirent *e2 = *b;
 
   // if one of the entries is a directory, it comes first
   if (e1->d_type != e2->d_type) {
@@ -105,14 +128,60 @@ static int dirent_compare(const void *a, const void *b) {
 /// @param flags output control flags (F_*)
 void processDir(const char *dn, const char *pstr, struct summary *stats,
                 unsigned int flags) {
-  // TODO
+  // Open directory
+  DIR *curDir = opendir(dn);
+  if (curDir == NULL) { // open directory failed
+    perror("opendir");
+    return;
+  }
+  // Entries to save the file in the directory
+  struct dirent **entries;
+  // Read and get number of entries
+  int dircnt = scandir(dn, &entries, NULL, dirent_compare);
+  if (dircnt < 0) { // read directory failed
+    perror("scandir");
+    closedir(curDir);
+    return;
+  }
+
+  // Print default state
+  // Get the directory name
+  const char *last_slash = strrchr(dn, '/');
+  if (strlen(pstr) == 2) { // Only the base directory
+    printf("%s\n", last_slash + 1);
+  }
+
+  for (int i = 0; i < dircnt; i++) {
+    struct dirent *entry = entries[i];
+    if (strcmp(entry->d_name, ".") == 0 ||
+        strcmp(entry->d_name, "..") == 0) { // Ignore "./.."
+      continue;
+    } else {
+      // Print the entry name
+      printf("%s%s\n", pstr, entry->d_name);
+
+      if (entry->d_type == DT_DIR) { // If entry is a directory
+        char *subDirPath =
+            malloc(strlen(dn) + strlen(entry->d_name) + 2);
+        char *subDirPrefix = malloc(strlen(pstr) + 2);
+        sprintf(subDirPath, "%s/%s", dn, entry->d_name);
+        sprintf(subDirPrefix, "%s  ", pstr);
+
+        processDir(subDirPath, subDirPrefix, stats, flags);
+        free(subDirPath);
+      }
+    }
+    closedir(curDir);
+    // TODO
+  }
 }
 
 /// @brief print program syntax and an optional error message. Aborts
 /// the program with EXIT_FAILURE
 ///
 /// @param argv0 command line argument 0 (executable)
-/// @param error optional error (format) string (printf format) or NULL
+/// @param error optional error (format) string (printf format) or
+/// NULL
 /// @param ... parameter to the error format string
 void syntax(const char *argv0, const char *error, ...) {
   if (error) {
@@ -150,9 +219,7 @@ void syntax(const char *argv0, const char *error, ...) {
 
 /// @brief program entry point
 int main(int argc, char *argv[]) {
-  //
   // default directory is the current directory (".")
-  //
   const char CURDIR[] = ".";
   const char *directories[MAX_DIR];
   int ndir = 0;
@@ -160,9 +227,7 @@ int main(int argc, char *argv[]) {
   struct summary tstat;
   unsigned int flags = 0;
 
-  //
   // parse arguments
-  //
   for (int i = 1; i < argc; i++) {
     if (argv[i][0] == '-') {
       // format: "-<flag>"
@@ -192,26 +257,27 @@ int main(int argc, char *argv[]) {
   if (ndir == 0)
     directories[ndir++] = CURDIR;
 
-  //
   // process each directory
   //
   // TODO
   //
   // Pseudo-code
   // - reset statistics (tstat)
-  // - loop over all entries in 'directories' (number of entires stored
-  // in 'ndir')
+  // - loop over all entries in 'directories' (number of entires
+  // stored in 'ndir')
   //   - reset statistics (dstat)
   //   - if F_SUMMARY flag set: print header
   //   - print directory name
   //   - call processDir() for the directory
   //   - if F_SUMMARY flag set: print summary & update statistics
   memset(&tstat, 0, sizeof(tstat));
-  //...
 
-  //
+  for (int i = 0; i < ndir; i++) {
+    processDir(directories[i], "  ", &tstat, flags);
+    // testing purpose (default case)
+  }
+
   // print grand total
-  //
   if ((flags & F_SUMMARY) && (ndir > 1)) {
     printf("Analyzed %d directories:\n"
            "  total # of files:        %16d\n"
@@ -228,9 +294,5 @@ int main(int argc, char *argv[]) {
              tstat.size, tstat.blocks);
     }
   }
-
-  //
-  // that's all, folks!
-  //
   return EXIT_SUCCESS;
 }
