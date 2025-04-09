@@ -552,9 +552,9 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
                 tstat->fifos, tstat->socks, 100);
   calculateSuffix(empty, &summaryOutput, 68);
   if ((flags & (F_SUMMARY | F_VERBOSE)) == (F_SUMMARY | F_VERBOSE)) {
-    printf("%-68s", summaryOutput);
+    printf("%-68.68s", summaryOutput);
   } else {
-    printf("%-68s\n\n", summaryOutput);
+    printf("%-68.68s\n\n", summaryOutput);
   }
 
   if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
