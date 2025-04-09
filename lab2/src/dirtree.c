@@ -297,7 +297,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
     calculatePrefix(&pstr, flags, 1);
-    fprintf(stderr, "ERROR: %s", strerror(errno));
+    fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
     free((char *)pstr);
     return;
   }
@@ -307,7 +307,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
     calculatePrefix(&pstr, flags, 0);
-    fprintf(stderr, "ERROR: %s", strerror(errno));
+    fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
     free((char *)pstr);
     closedir(curDir);
     return;
@@ -342,7 +342,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         free(entryPath);
         free(entryName);
         free((char *)pstr);
-        fprintf(stderr, "ERROR: %s", strerror(errno));
+        fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
         continue;
       }
 
@@ -501,6 +501,7 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
 
 /// @brief program entry point
 int main(int argc, char *argv[]) {
+  setvbuf(stdout, NULL, _IONBF, 0); // Force stdout to be unbuffered
   // default directory is the current directory (".")
   const char CURDIR[] = ".";
   const char *directories[MAX_DIR];
