@@ -73,8 +73,7 @@ struct dirent *getNext(DIR *dir) {
 
 /// @brief Calculate the prefix for the tree view
 /// @param inputStr Pointer to the string being referenced
-/// @param flags Output control flags (F_*). If F_TREE is set, the
-/// prefix is modified to be suitable for tree view
+/// @param flags Get flag and format prefix accordingly
 /// @param isLastEntry 1 if the entry is the last entry in the directory
 /// @return Pointer to the prefix string.
 char *calculatePrefix(const char *inputStr, unsigned int flags,
@@ -101,12 +100,12 @@ char *calculatePrefix(const char *inputStr, unsigned int flags,
       // "|" only when it is not base directory
       prefix[len - 2] = '|';
     }
-    if (isLastEntry) {       // last entry
+    if (isLastEntry) {       // Last entry
       prefix[len - 2] = '`'; // "`" for tree view
     }
   }
 
-  return prefix; // Caller must free
+  return prefix;
 }
 
 /// @brief Calculate the suffix for the file name
@@ -189,7 +188,7 @@ char *alignLeft(const char *src, int width) {
   if (!buf)
     return NULL;
 
-  size_t len = strlen(src);
+  size_t len = strlen(src); // Length of the source string
   strncpy(buf, src, width);
   if (len < width) { // If the string is shorter than the width
     memset(buf + len, ' ', width - len); // Fill remainder with spaces
@@ -355,7 +354,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         char *verboseResult = calculateVerbose(&st);
         printf("%-54s", pathNameResult);
         printf("%s\n", verboseResult);
-      } else { // default
+      } else { // Default
         // Print the entry name
         printf("%s%s\n", pstrCopy, entryName);
       }
@@ -430,12 +429,13 @@ void syntax(const char *argv0, const char *error, ...) {
 }
 
 /// @brief Format according to grammar and save to output
+/// @param output
 /// @param files
 /// @param dirs
 /// @param links
 /// @param pipes
 /// @param sockets
-/// @param output
+/// @param size
 void format_counts(char *output, int files, int dirs, int links,
                    int pipes, int sockets, size_t size) {
   snprintf(output, size, "%d %s, %d %s, %d %s, %d %s, and %d %s", files,
@@ -464,7 +464,7 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
            "-------------------------------------------\n");
   }
   // Body
-  if ((flags & F_TREE) == F_TREE) {
+  if ((flags & F_TREE) == F_TREE) { // -t
     processDir(directories, "| ", tstat, flags);
   } else {
     processDir(directories, "  ", tstat, flags);
@@ -567,8 +567,7 @@ int main(int argc, char *argv[]) {
                (F_VERBOSE | F_SUMMARY)) { // -v -s
       calculateSummary(flags, &tstat, directories[i], i);
     }
-    // save to local variable and reset statistics. Don't reset size and
-    // blocks
+    // Save to local variable and reset statistics.
     files += tstat.files;
     dirs += tstat.dirs;
     links += tstat.links;
