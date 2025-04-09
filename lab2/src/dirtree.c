@@ -71,6 +71,10 @@ struct dirent *getNext(DIR *dir) {
   return next;
 }
 
+/// @brief Replace target char with replacement
+/// @param pstr String to be modified
+/// @param target Char to be replaced
+/// @param replacement Replacement char
 void replace_char(const char **pstr, char target, char replacement) {
   char *copy = malloc(strlen(*pstr) + 1);
   strcpy(copy, *pstr);
@@ -82,7 +86,6 @@ void replace_char(const char **pstr, char target, char replacement) {
   }
 
   *pstr = copy;
-  // printf("Modified: %s\n", copy);s
 }
 
 /// @brief Calculate the prefix for the tree view
@@ -171,7 +174,10 @@ static int dirent_compare(const struct dirent **a,
   // otherwise sorty by name
   return strcmp(e1->d_name, e2->d_name);
 }
-
+/// @brief Align the string to the right with spaces
+/// @param src Source string to be aligned
+/// @param width Total width of the aligned string
+/// @return Pointer to the aligned string
 char *alignRight(const char *src, int width) {
   char *buf = malloc(width + 1);
   if (!buf)
@@ -188,6 +194,10 @@ char *alignRight(const char *src, int width) {
   return buf;
 }
 
+/// @brief Align the string to the left with spaces
+/// @param src Source string to be aligned
+/// @param width Total width of the aligned string
+/// @return Pointer to the aligned string
 char *alignLeft(const char *src, int width) {
   char *buf = malloc(width + 1);
   if (!buf)
@@ -234,7 +244,9 @@ struct stat *calculateFileInfo(const char *path, struct stat *st,
 
   return st;
 }
-
+/// @brief Calculate for -v option
+/// @param st Stat structure containing file information
+/// @return Formatted string (user, group, size, blocks, type)
 char *calculateVerbose(struct stat *st) {
   char *verboseResult = malloc(46);
   struct passwd *pw = getpwuid(st->st_uid);
@@ -448,7 +460,11 @@ void format_counts(char *output, int files, int dirs, int links,
            pipes == 1 ? "pipe" : "pipes", sockets,
            sockets == 1 ? "socket" : "sockets");
 }
-
+/// @brief Calculate -s option
+/// @param flags
+/// @param tstat
+/// @param directories
+/// @param i
 void calculateSummary(unsigned int flags, struct summary *tstat,
                       const char *directories, int i) {
   // Header
