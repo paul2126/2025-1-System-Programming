@@ -295,7 +295,6 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Open directory
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
-    // calculatePrefix(&pstr, flags, 1);
     pstrCopy = calculatePrefix(pstr, flags, 1);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -307,7 +306,6 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Read and get number of entries
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
-    // calculatePrefix(&pstr, flags, 0);
     pstrCopy = calculatePrefix(pstr, flags, 0);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -327,13 +325,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       char *entryName = malloc(strlen(entry->d_name) + 1);
       strcpy(entryName, entry->d_name);
 
-      // calculatePrefix(&pstr, flags, i == dircnt - 1);
       pstrCopy = calculatePrefix(pstr, flags, i == dircnt - 1);
-
-      // Memory leak here pstr
-      // const char *temp = strdup(pstr);
-      // free((char *)pstr);
-      // pstr = temp;
       calculateSuffix(pstrCopy, &entryName, 54);
 
       // Calculate the file info
@@ -368,8 +360,6 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         printf("%s%s\n", pstrCopy, entryName);
       }
 
-      // Print the entry name
-      // printf("%s%s\n", pstr, entryName);
       // Free the entry name
       free(entryName);
 
@@ -394,7 +384,6 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
     // Free the entry
     free(entries[i]);
   }
-  // free((char *)pstrCopy); // Free the prefix
   free(entries); // Free the entries
   closedir(curDir);
 }
