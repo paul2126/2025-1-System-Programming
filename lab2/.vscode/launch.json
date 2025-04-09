@@ -9,7 +9,7 @@
             // "args": [],
             // "program": "/bin/bash",
             "args": [
-                "-t", "../tools/demo"
+                 "../tools/demo"
             ],
             "preLaunchTask": "gcc build active file",
             "stopAtEntry": false,
