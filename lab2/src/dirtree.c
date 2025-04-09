@@ -357,6 +357,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
         fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
         continue;
       }
+      free(entryPath);
 
       if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
         // Combine pstr and entryName
