@@ -71,58 +71,12 @@ struct dirent *getNext(DIR *dir) {
   return next;
 }
 
-/// @brief Replace target char with replacement
-/// @param pstr String to be modified
-/// @param target Char to be replaced
-/// @param replacement Replacement char
-void replace_char(const char **pstr, char target, char replacement) {
-  char *copy = malloc(strlen(*pstr) + 1);
-  strcpy(copy, *pstr);
-
-  for (char *p = copy; *p != '\0'; p++) {
-    if (*p == target) {
-      *p = replacement;
-    }
-  }
-
-  *pstr = copy;
-}
-
 /// @brief Calculate the prefix for the tree view
-/// @param pstr Pointer to the string to be modified
+/// @param inputStr Pointer to the string being referenced
 /// @param flags Output control flags (F_*). If F_TREE is set, the
 /// prefix is modified to be suitable for tree view
 /// @param isLastEntry 1 if the entry is the last entry in the directory
-// void calculatePrefix(const char **pstr, unsigned int flags,
-//                      int isLastEntry) {
-//   replace_char(pstr, '-', ' ');
-//   // Prevent memory leak
-//   char *temp = strdup(*pstr);
-//   free((char *)*pstr);
-//   *pstr = temp;
-//   replace_char(pstr, '`', ' ');
-//   free((char *)temp);
-
-//   // printf("Prefix: %s\n", *pstr);
-//   char *prefix = malloc(strlen(*pstr) + 1);
-//   strcpy(prefix, *pstr);
-
-//   if ((flags & F_TREE) == F_TREE) {
-//     prefix[strlen(*pstr) - 1] = '-'; // "-" for tree view
-//     if (strlen(*pstr) > 2) {
-//       // "|" only when it is not base directory
-//       prefix[strlen(*pstr) - 2] = '|';
-//     }
-//     if (isLastEntry) {                 // last entry
-//       prefix[strlen(*pstr) - 2] = '`'; // "`" for tree view
-//     }
-//   }
-
-//   // Free old pstr memory
-//   free((char *)*pstr);
-//   *pstr = prefix;
-// }
-
+/// @return Pointer to the prefix string.
 char *calculatePrefix(const char *inputStr, unsigned int flags,
                       int isLastEntry) {
   // Make a modifiable copy of inputStr
@@ -135,25 +89,10 @@ char *calculatePrefix(const char *inputStr, unsigned int flags,
     }
   }
 
-  // replace_char(&temp, '-', ' ');
-  // replace_char(&temp, '`', ' ');
-
   // Create prefix based on modified string
   char *prefix = malloc(strlen(temp) + 1);
   strcpy(prefix, temp);
   free(temp);
-
-  // if ((flags & F_TREE) == F_TREE) {
-  //   size_t len = strlen(prefix);
-  //   if (len > 0)
-  //     prefix[len - 1] = '-'; // "-" for tree view
-  //   if (len > 2) {
-  //     prefix[len - 2] = '|';
-  //   }
-  //   if (isLastEntry && len > 2) {
-  //     prefix[len - 2] = '`'; // "`" for last tree entry
-  //   }
-  // }
 
   if ((flags & F_TREE) == F_TREE) {
     size_t len = strlen(prefix);
