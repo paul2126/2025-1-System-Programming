@@ -93,44 +93,91 @@ void replace_char(const char **pstr, char target, char replacement) {
 /// @param flags Output control flags (F_*). If F_TREE is set, the
 /// prefix is modified to be suitable for tree view
 /// @param isLastEntry 1 if the entry is the last entry in the directory
-void calculatePrefix(const char **pstr, unsigned int flags,
-                     int isLastEntry) {
-  replace_char(pstr, '-', ' ');
-  // Prevent memory leak
-  char *temp = strdup(*pstr);
-  free((char *)*pstr);
-  *pstr = temp;
-  replace_char(pstr, '`', ' ');
-  free((char *)temp);
+// void calculatePrefix(const char **pstr, unsigned int flags,
+//                      int isLastEntry) {
+//   replace_char(pstr, '-', ' ');
+//   // Prevent memory leak
+//   char *temp = strdup(*pstr);
+//   free((char *)*pstr);
+//   *pstr = temp;
+//   replace_char(pstr, '`', ' ');
+//   free((char *)temp);
 
-  // printf("Prefix: %s\n", *pstr);
-  char *prefix = malloc(strlen(*pstr) + 1);
-  strcpy(prefix, *pstr);
+//   // printf("Prefix: %s\n", *pstr);
+//   char *prefix = malloc(strlen(*pstr) + 1);
+//   strcpy(prefix, *pstr);
 
-  if ((flags & F_TREE) == F_TREE) {
-    prefix[strlen(*pstr) - 1] = '-'; // "-" for tree view
-    if (strlen(*pstr) > 2) {
-      // "|" only when it is not base directory
-      prefix[strlen(*pstr) - 2] = '|';
-    }
-    if (isLastEntry) {                 // last entry
-      prefix[strlen(*pstr) - 2] = '`'; // "`" for tree view
+//   if ((flags & F_TREE) == F_TREE) {
+//     prefix[strlen(*pstr) - 1] = '-'; // "-" for tree view
+//     if (strlen(*pstr) > 2) {
+//       // "|" only when it is not base directory
+//       prefix[strlen(*pstr) - 2] = '|';
+//     }
+//     if (isLastEntry) {                 // last entry
+//       prefix[strlen(*pstr) - 2] = '`'; // "`" for tree view
+//     }
+//   }
+
+//   // Free old pstr memory
+//   free((char *)*pstr);
+//   *pstr = prefix;
+// }
+
+char *calculatePrefix(const char *inputStr, unsigned int flags,
+                      int isLastEntry) {
+  // Make a modifiable copy of inputStr
+  char *temp = strdup(inputStr);
+
+  // replace - ` into ' '
+  for (char *p = temp; *p != '\0'; p++) {
+    if (*p == '-' || *p == '`') {
+      *p = ' ';
     }
   }
 
-  // Free old pstr memory
-  free((char *)*pstr);
-  *pstr = prefix;
+  // replace_char(&temp, '-', ' ');
+  // replace_char(&temp, '`', ' ');
+
+  // Create prefix based on modified string
+  char *prefix = malloc(strlen(temp) + 1);
+  strcpy(prefix, temp);
+  free(temp);
+
+  // if ((flags & F_TREE) == F_TREE) {
+  //   size_t len = strlen(prefix);
+  //   if (len > 0)
+  //     prefix[len - 1] = '-'; // "-" for tree view
+  //   if (len > 2) {
+  //     prefix[len - 2] = '|';
+  //   }
+  //   if (isLastEntry && len > 2) {
+  //     prefix[len - 2] = '`'; // "`" for last tree entry
+  //   }
+  // }
+
+  if ((flags & F_TREE) == F_TREE) {
+    size_t len = strlen(prefix);
+    prefix[len - 1] = '-'; // "-" for tree view
+    if (len > 2) {
+      // "|" only when it is not base directory
+      prefix[len - 2] = '|';
+    }
+    if (isLastEntry) {       // last entry
+      prefix[len - 2] = '`'; // "`" for tree view
+    }
+  }
+
+  return prefix; // Caller must free
 }
 
 /// @brief Calculate the suffix for the file name
 /// @param pstr Pointer to the string to be modified
 /// @param pfileName Pointer to the file name to be modified
-void calculateSuffix(const char **pstr, char **pfileName, int maxLen) {
-  int len = strlen(*pstr) + strlen(*pfileName);
+void calculateSuffix(char *pstr, char **pfileName, int maxLen) {
+  int len = strlen(pstr) + strlen(*pfileName);
   if (len > maxLen) {
     // Calculate the available length of the file name
-    int remainingLen = maxLen - strlen(*pstr);
+    int remainingLen = maxLen - strlen(pstr);
 
     // Create a new string with the remaining length
     char *copy = malloc(remainingLen);
@@ -299,6 +346,7 @@ char *calculateVerbose(struct stat *st) {
 /// @param flags output control flags (F_*)
 void processDir(const char *dn, const char *pstr, struct summary *stats,
                 unsigned int flags) {
+  char *pstrCopy = NULL;
   // Print default state
   // Get the directory name
   if (strlen(pstr) <= 2) { // Only the base directory
@@ -308,9 +356,11 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Open directory
   DIR *curDir = opendir(dn);
   if (curDir == NULL) { // open directory failed
-    calculatePrefix(&pstr, flags, 1);
-    fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
-    free((char *)pstr);
+    // calculatePrefix(&pstr, flags, 1);
+    pstrCopy = calculatePrefix(pstr, flags, 1);
+
+    fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
+    free((char *)pstrCopy);
     return;
   }
   // Entries to save the file in the directory
@@ -318,9 +368,11 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   // Read and get number of entries
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
   if (dircnt < 0) { // read directory failed
-    calculatePrefix(&pstr, flags, 0);
-    fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
-    free((char *)pstr);
+    // calculatePrefix(&pstr, flags, 0);
+    pstrCopy = calculatePrefix(pstr, flags, 0);
+
+    fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
+    free((char *)pstrCopy);
     closedir(curDir);
     return;
   }
@@ -336,12 +388,14 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       char *entryName = malloc(strlen(entry->d_name) + 1);
       strcpy(entryName, entry->d_name);
 
-      calculatePrefix(&pstr, flags, i == dircnt - 1);
+      // calculatePrefix(&pstr, flags, i == dircnt - 1);
+      pstrCopy = calculatePrefix(pstr, flags, i == dircnt - 1);
+
       // Memory leak here pstr
       // const char *temp = strdup(pstr);
       // free((char *)pstr);
       // pstr = temp;
-      calculateSuffix(&pstr, &entryName, 54);
+      calculateSuffix(pstrCopy, &entryName, 54);
 
       // Calculate the file info
       struct stat st;
@@ -353,8 +407,8 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       if (calculateFileInfo(entryPath, &st, stats) == NULL) {
         free(entryPath);
         free(entryName);
-        free((char *)pstr);
-        fprintf(stderr, "%sERROR: %s\n", pstr, strerror(errno));
+        fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
+        free((char *)pstrCopy);
         continue;
       }
       free(entryPath);
@@ -362,16 +416,17 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
       if ((flags & F_VERBOSE) == F_VERBOSE) { // -v
         // Combine pstr and entryName
         char *pathNameResult =
-            malloc(strlen(pstr) + strlen(entryName) + 1);
-        snprintf(pathNameResult, strlen(pstr) + strlen(entryName) + 1,
-                 "%s%s", pstr, entryName);
+            malloc(strlen(pstrCopy) + strlen(entryName) + 1);
+        snprintf(pathNameResult,
+                 strlen(pstrCopy) + strlen(entryName) + 1, "%s%s",
+                 pstrCopy, entryName);
         // Create verbose result
         char *verboseResult = calculateVerbose(&st);
         printf("%-54s", pathNameResult);
         printf("%s\n", verboseResult);
       } else { // default
         // Print the entry name
-        printf("%s%s\n", pstr, entryName);
+        printf("%s%s\n", pstrCopy, entryName);
       }
 
       // Print the entry name
@@ -387,20 +442,21 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
                  "%s/%s", dn, entry->d_name);
 
         // Increase prefix length
-        char *subDirPrefix = malloc(strlen(pstr) + 3);
-        snprintf(subDirPrefix, strlen(pstr) + 3, "%s  ", pstr);
+        char *subDirPrefix = malloc(strlen(pstrCopy) + 3);
+        snprintf(subDirPrefix, strlen(pstrCopy) + 3, "%s  ", pstrCopy);
 
         processDir(subDirPath, subDirPrefix, stats, flags);
 
         free(subDirPath);
         free(subDirPrefix);
       }
+      free((char *)pstrCopy);
     }
     // Free the entry
     free(entries[i]);
   }
-  free((char *)pstr); // Free the prefix
-  free(entries);      // Free the entries
+  // free((char *)pstrCopy); // Free the prefix
+  free(entries); // Free the entries
   closedir(curDir);
 }
 
@@ -491,10 +547,10 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
          "-------------------------------------------\n");
   // calculate summary
   char *summaryOutput = malloc(100);
-  const char *empty = "";
+  char *empty = "";
   format_counts(summaryOutput, tstat->files, tstat->dirs, tstat->links,
                 tstat->fifos, tstat->socks, 100);
-  calculateSuffix(&empty, &summaryOutput, 68);
+  calculateSuffix(empty, &summaryOutput, 68);
   if ((flags & (F_SUMMARY | F_VERBOSE)) == (F_SUMMARY | F_VERBOSE)) {
     printf("%-68s", summaryOutput);
   } else {
