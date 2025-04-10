@@ -81,7 +81,7 @@ char *calculatePrefix(const char *inputStr, unsigned int flags,
   // Make a modifiable copy of inputStr
   char *temp = strdup(inputStr);
 
-  // replace - ` into ' '
+  // Replace - ` into ' '
   for (char *p = temp; *p != '\0'; p++) {
     if (*p == '-' || *p == '`') {
       *p = ' ';
@@ -165,16 +165,18 @@ static int dirent_compare(const struct dirent **a,
 /// @return Pointer to the aligned string
 char *alignRight(const char *src, int width) {
   char *buf = malloc(width + 1);
-  if (!buf)
-    return NULL;
 
-  size_t len = strlen(src); // Length of the source string
+  // Length of the source string
+  size_t len = strlen(src);
   int padding = width - len;
+  // Do nothing on neg padding
   if (padding < 0)
     padding = 0;
 
-  memset(buf, ' ', padding);                    // Fill with spaces
-  strncpy(buf + padding, src, width - padding); // Slide by +padding
+  // Fill with spaces
+  memset(buf, ' ', padding);
+  // Fill after padding
+  strncpy(buf + padding, src, width - padding);
   buf[width] = '\0';
   return buf;
 }
@@ -185,13 +187,13 @@ char *alignRight(const char *src, int width) {
 /// @return Pointer to the aligned string
 char *alignLeft(const char *src, int width) {
   char *buf = malloc(width + 1);
-  if (!buf)
-    return NULL;
 
-  size_t len = strlen(src); // Length of the source string
+  size_t len = strlen(src);
   strncpy(buf, src, width);
-  if (len < width) { // If the string is shorter than the width
-    memset(buf + len, ' ', width - len); // Fill remainder with spaces
+  // If the string is shorter than the width
+  if (len < width) {
+    // Fill remainder with spaces
+    memset(buf + len, ' ', width - len);
   }
   buf[width] = '\0';
   return buf;
@@ -201,7 +203,7 @@ char *alignLeft(const char *src, int width) {
 /// @param path Absolute or relative path string
 /// @param st Pointer to a stat structure to store file information
 /// @param counts Pointer to a summary structure to store file
-/// information
+/// information for printing
 /// @return Pointer to the stat structure on success, NULL on error
 struct stat *calculateFileInfo(const char *path, struct stat *st,
                                struct summary *counts) {
@@ -266,8 +268,8 @@ char *calculateVerbose(struct stat *st) {
   snprintf(blocksStr, sizeof(blocksStr), "%lld",
            (long long)st->st_blocks);
 
-  userName = alignRight(pw ? pw->pw_name : "?", 8);
-  groupName = alignLeft(gr ? gr->gr_name : "?", 8);
+  userName = alignRight(pw->pw_name, 8);
+  groupName = alignLeft(gr->gr_name, 8);
   fileSize = alignRight(sizeStr, 10);
   fileBlocks = alignRight(blocksStr, 8);
 
@@ -293,7 +295,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
 
   // Open directory
   DIR *curDir = opendir(dn);
-  if (curDir == NULL) { // open directory failed
+  if (curDir == NULL) { // Open directory failed
     pstrCopy = calculatePrefix(pstr, flags, 1);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -304,7 +306,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   struct dirent **entries;
   // Read and get number of entries
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
-  if (dircnt < 0) { // read directory failed
+  if (dircnt < 0) { // Read directory failed
     pstrCopy = calculatePrefix(pstr, flags, 0);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -352,7 +354,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
                  pstrCopy, entryName);
         // Create verbose result
         char *verboseResult = calculateVerbose(&st);
-        printf("%-54s", pathNameResult);
+        printf("%-54.54s", pathNameResult);
         printf("%s\n", verboseResult);
       } else { // Default
         // Print the entry name
@@ -473,7 +475,7 @@ void calculateSummary(unsigned int flags, struct summary *tstat,
   // Footer
   printf("---------------------------------------------------------"
          "-------------------------------------------\n");
-  // calculate summary
+  // Calculate summary
   char *summaryOutput = malloc(100);
   char *empty = "";
   format_counts(summaryOutput, tstat->files, tstat->dirs, tstat->links,
