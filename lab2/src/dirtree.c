@@ -203,7 +203,7 @@ char *alignLeft(const char *src, int width) {
 /// @param path Absolute or relative path string
 /// @param st Pointer to a stat structure to store file information
 /// @param counts Pointer to a summary structure to store file
-/// information
+/// information for printing
 /// @return Pointer to the stat structure on success, NULL on error
 struct stat *calculateFileInfo(const char *path, struct stat *st,
                                struct summary *counts) {
@@ -295,7 +295,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
 
   // Open directory
   DIR *curDir = opendir(dn);
-  if (curDir == NULL) { // open directory failed
+  if (curDir == NULL) { // Open directory failed
     pstrCopy = calculatePrefix(pstr, flags, 1);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -306,7 +306,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
   struct dirent **entries;
   // Read and get number of entries
   int dircnt = scandir(dn, &entries, NULL, dirent_compare);
-  if (dircnt < 0) { // read directory failed
+  if (dircnt < 0) { // Read directory failed
     pstrCopy = calculatePrefix(pstr, flags, 0);
 
     fprintf(stderr, "%sERROR: %s\n", pstrCopy, strerror(errno));
@@ -354,7 +354,7 @@ void processDir(const char *dn, const char *pstr, struct summary *stats,
                  pstrCopy, entryName);
         // Create verbose result
         char *verboseResult = calculateVerbose(&st);
-        printf("%-54s", pathNameResult);
+        printf("%-54.54s", pathNameResult);
         printf("%s\n", verboseResult);
       } else { // Default
         // Print the entry name
