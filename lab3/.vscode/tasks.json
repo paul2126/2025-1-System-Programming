@@ -1,0 +1,38 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "cppbuild",
+			"label": "gcc build active file",
+			"command": "/usr/bin/gcc",
+
+			"args": [
+				"-fdiagnostics-color=always",
+				"-g",
+
+				// "-std=c99",
+				"-Wall",
+				"-Werror",
+				"-ansi",
+				"-pedantic",
+				"-std=gnu99",
+				
+				// "${file}",
+				"/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr.c",
+				"/home/attat/snu/2025-1-System-Programming/lab3/src/heapmgr1.c",
+				"/home/attat/snu/2025-1-System-Programming/lab3/src/chunk.c",
+				"-o",
+				// "${fileDirname}/${fileBasenameNoExtension}"
+				"/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1"
+			],
+			"options": {
+				"cwd": "${fileDirname}"
+			},
+			"problemMatcher": [
+				"$gcc"
+			],
+			"group": "build",
+			"detail": "compiler: /usr/bin/gcc"
+		}
+	]
+}
