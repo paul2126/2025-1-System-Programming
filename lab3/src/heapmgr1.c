@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#include "chunkbase.h"
+#include "chunk.h"
 
 #define FALSE 0
 #define TRUE 1

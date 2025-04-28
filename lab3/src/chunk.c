@@ -12,7 +12,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "chunkbase.h"
+#include "chunk.h"
 
 struct Chunk {
   Chunk_T next; /* Pointer to the next chunk in the free chunk list */
