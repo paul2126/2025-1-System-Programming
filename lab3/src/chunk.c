@@ -16,6 +16,7 @@
 
 struct Chunk {
   Chunk_T next; /* Pointer to the next chunk in the free chunk list */
+  Chunk_T prev; /* Pointer to previous chunk in the free chunk list */
   int units;    /* Capacity of a chunk (chunk units) */
   int status;   /* CHUNK_FREE or CHUNK_IN_USE */
 };
@@ -35,14 +36,21 @@ void chunk_set_next_free_chunk(Chunk_T c, Chunk_T next) {
   c->next = next;
 }
 /*--------------------------------------------------------------------*/
+Chunk_T chunk_get_prev_free_chunk(Chunk_T c) { return c->prev; }
+/*--------------------------------------------------------------------*/
+void chunk_set_prev_free_chunk(Chunk_T c, Chunk_T prev) {
+  c->prev = prev;
+}
+/*--------------------------------------------------------------------*/
 Chunk_T chunk_get_next_adjacent(Chunk_T c, void *start, void *end) {
+  // need to be refactored into double linked list
   Chunk_T n;
 
   assert((void *)c >= start);
 
-  /* Note that a chunk consists of one chunk unit for a header, and
-   * many chunk units for data. */
-  n = c + c->units + 1;
+  /* Note that a chunk consists of one chunk unit for a header footer
+   * each, and many chunk units for data. */
+  n = c + c->units + 2;
 
   /* If 'c' is the last chunk in memory space, then return NULL. */
   if ((void *)n >= end)
