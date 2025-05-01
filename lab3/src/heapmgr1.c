@@ -14,6 +14,9 @@ enum {
 /* g_free_head: point to first chunk in the free list */
 static Chunk_T g_free_head = NULL;
 
+/* g_cur_head: point to the current chunk in the free list */
+// static Chunk_T g_cur_head = NULL;
+
 /* g_heap_start, g_heap_end: start and end of the heap area.
  * g_heap_end will move if you increase the heap */
 static void *g_heap_start = NULL, *g_heap_end = NULL;
@@ -78,7 +81,7 @@ static int check_heap_validity(void) {
  * Returns capable number of units for 'size' bytes.
  */
 /*--------------------------------------------------------------*/
-static size_t size_to_units(size_t size) {
+static size_t size_to_units(size_t size) { // ok
   return (size + (CHUNK_UNIT - 1)) / CHUNK_UNIT;
 }
 /*--------------------------------------------------------------*/
@@ -86,7 +89,7 @@ static size_t size_to_units(size_t size) {
  * Returns the header pointer that contains data 'm'.
  */
 /*--------------------------------------------------------------*/
-static Chunk_T get_chunk_from_data_ptr(void *m) {
+static Chunk_T get_chunk_from_data_ptr(void *m) { // ok
   return (Chunk_T)((char *)m - CHUNK_UNIT);
 }
 /*--------------------------------------------------------------------*/
