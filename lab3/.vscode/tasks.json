@@ -16,14 +16,25 @@
 				"-ansi",
 				"-pedantic",
 				"-std=gnu99",
+
+				"-D", "NDEBUG",
 				
 				// "${file}",
-				"/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr.c",
-				"/home/attat/snu/2025-1-System-Programming/lab3/src/heapmgr1.c",
-				"/home/attat/snu/2025-1-System-Programming/lab3/src/chunk.c",
+				// "/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr.c",
+				// "/home/attat/snu/2025-1-System-Programming/lab3/src/heapmgr1.c",
+				// "/home/attat/snu/2025-1-System-Programming/lab3/src/chunk.c",
+
+				// for desktop
+				"/home/attat/snu/sp/lab3/test/testheapmgr.c",
+				"/home/attat/snu/sp/lab3/src/heapmgr1.c",
+				"/home/attat/snu/sp/lab3/src/chunk.c",				
+				
 				"-o",
 				// "${fileDirname}/${fileBasenameNoExtension}"
-				"/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1"
+				// "/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1"
+
+				// for desktop
+				"/home/attat/snu/sp/lab3/test/testheapmgr1"
 			],
 			"options": {
 				"cwd": "${fileDirname}"

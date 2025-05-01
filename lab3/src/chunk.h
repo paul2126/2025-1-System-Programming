@@ -48,6 +48,10 @@ void chunk_set_status(Chunk_T c, int status);
  * units. */
 int chunk_get_units(Chunk_T c);
 
+/* chunk_set_footer:
+ * Sets the footer of a chunk, 'c', to 'units'. */
+void chunk_set_footer(Chunk_T c, int units);
+
 /* chunk_set_units:
  * Sets the current size in 'units' of 'c' */
 void chunk_set_units(Chunk_T c, int units);

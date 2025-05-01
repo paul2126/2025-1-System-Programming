@@ -6,8 +6,9 @@
             "type": "cppdbg",
             "request": "launch",
             // "program": "${fileDirname}/${fileBasenameNoExtension}",
-            "program": "/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1",
-            "args": ["LIFO_fixed", "50000", "1000"],
+            // "program": "/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1",
+            "program": "/home/attat/snu/sp/lab3/test/testheapmgr1",
+            "args": ["random_random", "50000", "1000"],
             "preLaunchTask": "gcc build active file",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/src",
@@ -20,7 +21,10 @@
                     "description": "Enable pretty-printing for gdb",
                     "text": "-enable-pretty-printing",
                     "ignoreFailures": true
-                }
+                },
+                {
+                    "text": "handle SIGSEGV stop print"
+                  }
             ]
         }
     ]

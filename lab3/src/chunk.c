@@ -30,6 +30,12 @@ int chunk_get_units(Chunk_T c) { return c->units; }
 /*--------------------------------------------------------------------*/
 void chunk_set_units(Chunk_T c, int units) { c->units = units; }
 /*--------------------------------------------------------------------*/
+void chunk_set_footer(Chunk_T c, int units) {
+  // get footer address
+  int *footer = (int *)((char *)c + (units + 1) * CHUNK_UNIT);
+  *footer = units;
+}
+/*--------------------------------------------------------------------*/
 Chunk_T chunk_get_next_free_chunk(Chunk_T c) { return c->next; }
 /*--------------------------------------------------------------------*/
 void chunk_set_next_free_chunk(Chunk_T c, Chunk_T next) {

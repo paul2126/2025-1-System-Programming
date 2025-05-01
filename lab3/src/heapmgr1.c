@@ -9,8 +9,11 @@
 
 enum {
   MEMALLOC_MIN = 1024,
+  // MEMALLOC_MIN = 10,
 };
+// static void dump_heap_to_dot(const char *filename);
 
+int iteration = 0;
 /* g_free_head: point to first chunk in the free list */
 static Chunk_T g_free_head = NULL;
 
@@ -89,7 +92,7 @@ static size_t size_to_units(size_t size) { // ok
  * Returns the header pointer that contains data 'm'.
  */
 /*--------------------------------------------------------------*/
-static Chunk_T get_chunk_from_data_ptr(void *m) { // ok
+static Chunk_T get_chunk_from_data_ptr(void *m) {
   return (Chunk_T)((char *)m - CHUNK_UNIT);
 }
 /*--------------------------------------------------------------------*/
@@ -108,8 +111,8 @@ static void init_my_heap(void) {
 }
 /*--------------------------------------------------------------------*/
 /* merge_chunk:
- * Merge two adjacent chunks and return the merged chunk.
- * Returns NULL on error.
+ * Merge two adjacent chunks and return the merged chunk. must be always
+ * c1 c2 order Returns NULL on error.
  */
 /*--------------------------------------------------------------------*/
 static Chunk_T merge_chunk(Chunk_T c1, Chunk_T c2) {
@@ -120,8 +123,12 @@ static Chunk_T merge_chunk(Chunk_T c1, Chunk_T c2) {
   assert(chunk_get_status(c2) == CHUNK_FREE);
 
   /* adjust the units and the next pointer of c1 */
-  chunk_set_units(c1, chunk_get_units(c1) + chunk_get_units(c2) + 1);
+  chunk_set_units(c1, chunk_get_units(c1) + chunk_get_units(c2) + 2);
   chunk_set_next_free_chunk(c1, chunk_get_next_free_chunk(c2));
+
+  // set prev free chunk of n(free chunk after c2) to c1
+  Chunk_T n = chunk_get_next_free_chunk(c2);
+  chunk_set_prev_free_chunk(n, c1);
   return c1;
 }
 /*--------------------------------------------------------------------*/
@@ -138,16 +145,20 @@ static Chunk_T split_chunk(Chunk_T c, size_t units) {
   assert(c >= (Chunk_T)g_heap_start && c <= (Chunk_T)g_heap_end);
   assert(chunk_get_status(c) == CHUNK_FREE);
   assert(chunk_get_units(c) >
-         units + 1); /* assume chunk with header unit */
+         units + 2); /* assume chunk with header&footer unit */
 
-  /* adjust the size of the first chunk */
+  /* adjust the size of the first chunk (free) */
   all_units = chunk_get_units(c);
-  chunk_set_units(c, all_units - units - 1);
+  chunk_set_units(c, all_units - units - 2); // header & footer
+  chunk_set_footer(c, all_units - units - 2);
 
-  /* prepare for the second chunk */
+  /* prepare for the second chunk (use)*/
   c2 = chunk_get_next_adjacent(c, g_heap_start, g_heap_end);
   chunk_set_units(c2, units);
   chunk_set_status(c2, CHUNK_IN_USE);
+
+  // set footer
+  chunk_set_footer(c2, units);
   chunk_set_next_free_chunk(c2, chunk_get_next_free_chunk(c));
 
   return c2;
@@ -193,8 +204,15 @@ static Chunk_T insert_chunk_after(Chunk_T e, Chunk_T c) {
   assert(chunk_get_status(e) == CHUNK_FREE);
   assert(chunk_get_status(c) != CHUNK_FREE);
 
+  // set prev for c+1 chunk to c
+  n = chunk_get_next_free_chunk(e);
+  if (n != NULL)
+    chunk_set_prev_free_chunk(n, c);
+
   chunk_set_next_free_chunk(c, chunk_get_next_free_chunk(e));
   chunk_set_next_free_chunk(e, c);
+  chunk_set_prev_free_chunk(c, e);
+
   chunk_set_status(c, CHUNK_FREE);
 
   /* see if c can be merged with e */
@@ -217,10 +235,17 @@ static Chunk_T insert_chunk_after(Chunk_T e, Chunk_T c) {
 static void remove_chunk_from_list(Chunk_T prev, Chunk_T c) {
   assert(chunk_get_status(c) == CHUNK_FREE);
 
+  Chunk_T n;
+
   if (prev == NULL)
     g_free_head = chunk_get_next_free_chunk(c);
   else
     chunk_set_next_free_chunk(prev, chunk_get_next_free_chunk(c));
+
+  // get next chunk and set prev chunk
+  n = chunk_get_next_free_chunk(c);
+  if (n != NULL)
+    chunk_set_prev_free_chunk(n, prev);
 
   chunk_set_next_free_chunk(c, NULL);
   chunk_set_status(c, CHUNK_IN_USE);
@@ -240,8 +265,8 @@ static Chunk_T allocate_more_memory(Chunk_T prev, size_t units) {
   if (units < MEMALLOC_MIN)
     units = MEMALLOC_MIN;
 
-  /* Note that we need to allocate one more unit for header. */
-  c = (Chunk_T)sbrk((units + 1) * CHUNK_UNIT);
+  /* Note that we need to allocate two more unit for header & footer. */
+  c = (Chunk_T)sbrk((units + 2) * CHUNK_UNIT);
   if (c == (Chunk_T)-1)
     return NULL;
 
@@ -249,6 +274,9 @@ static Chunk_T allocate_more_memory(Chunk_T prev, size_t units) {
   chunk_set_units(c, units);
   chunk_set_next_free_chunk(c, NULL);
   chunk_set_status(c, CHUNK_IN_USE);
+
+  chunk_set_footer(c, units);         // set footer
+  chunk_set_prev_free_chunk(c, prev); // set prev chunk for c
 
   /* Insert the newly allocated chunk 'c' to the free list.
    * Note that the list is sorted in ascending order. */
@@ -290,10 +318,16 @@ void *heapmgr_malloc(size_t size) {
   for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c)) {
 
     if (chunk_get_units(c) >= units) {
-      if (chunk_get_units(c) > units + 1)
+      // remaining chunk should be big enough to have header and footer
+      if (chunk_get_units(c) >= units + 2)
         c = split_chunk(c, units);
-      else
-        remove_chunk_from_list(prev, c);
+      else if (chunk_get_units(c) == units) // perfect fit
+        remove_chunk_from_list(prev, c);    // use this chunk. remove it
+      else { // not big enough for header & footer
+        pprev = prev;
+        prev = c;
+        continue; // not enough space for header and footer
+      }
 
       assert(check_heap_validity());
       return (void *)((char *)c + CHUNK_UNIT);
@@ -314,12 +348,18 @@ void *heapmgr_malloc(size_t size) {
   if (c == prev)
     prev = pprev;
 
-  if (chunk_get_units(c) > units + 1)
+  if (chunk_get_units(c) >= units + 2) // header & footer
     c = split_chunk(c, units);
   else
     remove_chunk_from_list(prev, c);
 
   assert(check_heap_validity());
+
+  // print heap to dot file
+  // char filename[20];
+  // snprintf(filename, sizeof(filename), "malloc-%d.dot", iteration);
+  // dump_heap_to_dot(filename);
+  // iteration++;
   return (void *)((char *)c + CHUNK_UNIT);
 }
 /*--------------------------------------------------------------*/
@@ -355,7 +395,70 @@ void heapmgr_free(void *m) {
     insert_chunk(c);
   else
     insert_chunk_after(prev, c);
+  printf("free %p\n", (void *)c);
 
   /* double check if everything is OK */
   assert(check_heap_validity());
+
+  // print heap to dot file
+  // char filename[20];
+  // snprintf(filename, sizeof(filename), "free-%d.dot", iteration);
+  // dump_heap_to_dot(filename);
+  // iteration++;
+
+  // dump_heap_to_dot("heap.dot");
 }
+
+// static void dump_heap_to_dot(const char *filename) {
+//   FILE *f = fopen(filename, "w");
+//   if (!f) {
+//     perror("fopen");
+//     return;
+//   }
+
+//   fprintf(f, "digraph CombinedHeap {\n");
+//   fprintf(f, "  node [shape=record];\n");
+
+//   // Dump the entire memory heap
+//   Chunk_T w;
+//   for (w = (Chunk_T)g_heap_start; (void *)w < g_heap_end;
+//        w = chunk_get_next_adjacent(w, g_heap_start, g_heap_end)) {
+//     fprintf(f,
+//             "  chunk_%p [label=\"{Address: %p | Size: %d | Status: "
+//             "%s}\"];\n",
+//             (void *)w, (void *)w, chunk_get_units(w),
+//             chunk_get_status(w) == CHUNK_FREE ? "FREE" : "IN_USE");
+
+//     // Link to the next adjacent chunk
+//     Chunk_T next = chunk_get_next_adjacent(w, g_heap_start,
+//     g_heap_end); if (next != NULL) {
+//       fprintf(f, "  chunk_%p -> chunk_%p [label=\"adjacent\"];\n",
+//               (void *)w, (void *)next);
+//     } else {
+//       break;
+//     }
+//   }
+
+//   // Dump the free list
+//   for (w = g_free_head; w != NULL; w = chunk_get_next_free_chunk(w))
+//   {
+//     // Forward link (next_free_chunk)
+//     if (chunk_get_next_free_chunk(w)) {
+//       fprintf(f,
+//               "  chunk_%p -> chunk_%p [label=\"next\""
+//               "color =\"green\"];\n",
+//               (void *)w, (void *)chunk_get_next_free_chunk(w));
+//     }
+
+//     // Backward link (prev_free_chunk)
+//     if (chunk_get_prev_free_chunk(w)) {
+//       fprintf(f,
+//               "  chunk_%p -> chunk_%p [label=\"prev\""
+//               "color =\"blue\"];\n",
+//               (void *)w, (void *)chunk_get_prev_free_chunk(w));
+//     }
+//   }
+
+//   fprintf(f, "}\n");
+//   fclose(f);
+// }

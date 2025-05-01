@@ -1,6 +1,7 @@
 {
     "files.associations": {
         "stdio.h": "c",
-        "heapmgr.h": "c"
+        "heapmgr.h": "c",
+        "stddef.h": "c"
     }
 }
