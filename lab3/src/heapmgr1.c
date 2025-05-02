@@ -312,35 +312,19 @@ void *heapmgr_malloc(size_t size) {
   pprev = NULL;
   prev = NULL;
 
-  // for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c))
-  // {
-
-  //   if (chunk_get_units(c) >= units) {
-  //     // remaining chunk should be big enough to have header and
-  //     footer if (chunk_get_units(c) >= units + 2)
-  //       c = split_chunk(c, units);
-  //     else if (chunk_get_units(c) == units) // perfect fit
-  //       remove_chunk_from_list(prev, c);    // use this chunk. remove
-  //       it
-  //     else { // not big enough for header & footer
-  //       pprev = prev;
-  //       prev = c;
-  //       continue; // not enough space for header and footer
-  //     }
-
-  //     assert(check_heap_validity());
-  //     return (void *)((char *)c + CHUNK_UNIT);
-  //   }
-  //   pprev = prev;
-  //   prev = c;
-  // }
   for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c)) {
 
     if (chunk_get_units(c) >= units) {
-      if (chunk_get_units(c) > units + 2)
+      // remaining chunk should be big enough to have header and footer
+      if (chunk_get_units(c) >= units + 2)
         c = split_chunk(c, units);
-      else
-        remove_chunk_from_list(prev, c);
+      else if (chunk_get_units(c) == units) // perfect fit
+        remove_chunk_from_list(prev, c);    // use this chunk. remove it
+      else { // not big enough for header & footer
+        pprev = prev;
+        prev = c;
+        continue; // not enough space for header and footer
+      }
 
       assert(check_heap_validity());
       return (void *)((char *)c + CHUNK_UNIT);
