@@ -688,6 +688,7 @@ static void test_worst(int i_count, int i_size)
       }
       #endif
       i++;
+      if (i >= i_count) break;
       apc_chunks[i] = heapmgr_malloc((size_t)1);
       i++;
    }
@@ -696,34 +697,28 @@ static void test_worst(int i_count, int i_size)
       implementation that uses a single linked list will be in a
       worst-case state:  the list will contain chunks in increasing
       order by size. */
-   i = i_count;
-   while (i >= 2)
-   {
-      i--;
-      i--;
-      #ifndef NDEBUG
-      {
-         /* Check the chunk that is about to be freed to make sure
-            that its contents haven't been corrupted. */
-         size_t i_col;
-	      size_t max = ((size_t)i * i_size / i_count) + 1;
-         char c = (char)((i % 10) + '0');
-         for (i_col = 0; i_col < max; i_col++)
-            ASSURE(apc_chunks[i][i_col] == c);
-      }
-      #endif
-      heapmgr_free(apc_chunks[i]);
-   }
+   i = (i_count % 2 == 0 ? i_count - 2 : i_count - 1);
+      for (; i >= 0; i -= 2) {
+         #ifndef NDEBUG
+         {
+            /* Check the chunk that is about to be freed to make sure
+               that its contents haven't been corrupted. */
+            size_t i_col;
+            size_t max = ((size_t)i * i_size / i_count) + 1;
+            char c = (char)((i % 10) + '0');
+            for (i_col = 0; i_col < max; i_col++)
+               ASSURE(apc_chunks[i][i_col] == c);
+        }
+        #endif
+        heapmgr_free(apc_chunks[i]);
+    }
 
    /* Allocate chunks in decreasing order by size, thus maximizing the
       amount of list traversal required. */
-   i = i_count;
-   while (i >= 2)
-   {
-      i--;
-      i--;
+   i = (i_count % 2 == 0 ? i_count - 2 : i_count - 1);
+   for (; i >= 0; i -= 2) {
       apc_chunks[i] = heapmgr_malloc((size_t)(((size_t)i * i_size / i_count) + 1));
-      ASSURE(apc_chunks != NULL);
+      ASSURE(apc_chunks[i] != NULL);
    }
 
    /* Free all chunks. */
