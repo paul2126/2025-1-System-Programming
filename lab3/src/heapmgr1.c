@@ -128,7 +128,8 @@ static Chunk_T merge_chunk(Chunk_T c1, Chunk_T c2) {
 
   // set prev free chunk of n(free chunk after c2) to c1
   Chunk_T n = chunk_get_next_free_chunk(c2);
-  chunk_set_prev_free_chunk(n, c1);
+  if (n != NULL) // check for end of list
+    chunk_set_prev_free_chunk(n, c1);
   return c1;
 }
 /*--------------------------------------------------------------------*/
@@ -360,6 +361,8 @@ void *heapmgr_malloc(size_t size) {
   // snprintf(filename, sizeof(filename), "malloc-%d.dot", iteration);
   // dump_heap_to_dot(filename);
   // iteration++;
+
+  // dump_heap_to_dot("malloc-heap.dot");
   return (void *)((char *)c + CHUNK_UNIT);
 }
 /*--------------------------------------------------------------*/
@@ -395,7 +398,6 @@ void heapmgr_free(void *m) {
     insert_chunk(c);
   else
     insert_chunk_after(prev, c);
-  printf("free %p\n", (void *)c);
 
   /* double check if everything is OK */
   assert(check_heap_validity());
@@ -406,7 +408,7 @@ void heapmgr_free(void *m) {
   // dump_heap_to_dot(filename);
   // iteration++;
 
-  // dump_heap_to_dot("heap.dot");
+  // dump_heap_to_dot("free-heap.dot");
 }
 
 // static void dump_heap_to_dot(const char *filename) {
