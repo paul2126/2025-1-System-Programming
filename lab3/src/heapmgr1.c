@@ -9,16 +9,12 @@
 
 enum {
   MEMALLOC_MIN = 1024,
-  // MEMALLOC_MIN = 10,
 };
 // static void dump_heap_to_dot(const char *filename);
 
 int iteration = 0;
 /* g_free_head: point to first chunk in the free list */
 static Chunk_T g_free_head = NULL;
-
-/* g_cur_head: point to the current chunk in the free list */
-// static Chunk_T g_cur_head = NULL;
 
 /* g_heap_start, g_heap_end: start and end of the heap area.
  * g_heap_end will move if you increase the heap */
@@ -316,19 +312,35 @@ void *heapmgr_malloc(size_t size) {
   pprev = NULL;
   prev = NULL;
 
+  // for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c))
+  // {
+
+  //   if (chunk_get_units(c) >= units) {
+  //     // remaining chunk should be big enough to have header and
+  //     footer if (chunk_get_units(c) >= units + 2)
+  //       c = split_chunk(c, units);
+  //     else if (chunk_get_units(c) == units) // perfect fit
+  //       remove_chunk_from_list(prev, c);    // use this chunk. remove
+  //       it
+  //     else { // not big enough for header & footer
+  //       pprev = prev;
+  //       prev = c;
+  //       continue; // not enough space for header and footer
+  //     }
+
+  //     assert(check_heap_validity());
+  //     return (void *)((char *)c + CHUNK_UNIT);
+  //   }
+  //   pprev = prev;
+  //   prev = c;
+  // }
   for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c)) {
 
     if (chunk_get_units(c) >= units) {
-      // remaining chunk should be big enough to have header and footer
-      if (chunk_get_units(c) >= units + 2)
+      if (chunk_get_units(c) > units + 2)
         c = split_chunk(c, units);
-      else if (chunk_get_units(c) == units) // perfect fit
-        remove_chunk_from_list(prev, c);    // use this chunk. remove it
-      else { // not big enough for header & footer
-        pprev = prev;
-        prev = c;
-        continue; // not enough space for header and footer
-      }
+      else
+        remove_chunk_from_list(prev, c);
 
       assert(check_heap_validity());
       return (void *)((char *)c + CHUNK_UNIT);
@@ -357,11 +369,6 @@ void *heapmgr_malloc(size_t size) {
   assert(check_heap_validity());
 
   // print heap to dot file
-  // char filename[20];
-  // snprintf(filename, sizeof(filename), "malloc-%d.dot", iteration);
-  // dump_heap_to_dot(filename);
-  // iteration++;
-
   // dump_heap_to_dot("malloc-heap.dot");
   return (void *)((char *)c + CHUNK_UNIT);
 }
@@ -403,64 +410,60 @@ void heapmgr_free(void *m) {
   assert(check_heap_validity());
 
   // print heap to dot file
-  // char filename[20];
-  // snprintf(filename, sizeof(filename), "free-%d.dot", iteration);
-  // dump_heap_to_dot(filename);
-  // iteration++;
-
   // dump_heap_to_dot("free-heap.dot");
 }
+/*
+static void dump_heap_to_dot(const char *filename) {
+  FILE *f = fopen(filename, "w");
+  if (!f) {
+    perror("fopen");
+    return;
+  }
 
-// static void dump_heap_to_dot(const char *filename) {
-//   FILE *f = fopen(filename, "w");
-//   if (!f) {
-//     perror("fopen");
-//     return;
-//   }
+  fprintf(f, "digraph CombinedHeap {\n");
+  fprintf(f, "  node [shape=record];\n");
 
-//   fprintf(f, "digraph CombinedHeap {\n");
-//   fprintf(f, "  node [shape=record];\n");
+  // dump entire heap
+  Chunk_T w;
+  for (w = (Chunk_T)g_heap_start; (void *)w < g_heap_end;
+       w = chunk_get_next_adjacent(w, g_heap_start, g_heap_end)) {
+    fprintf(f,
+            "  chunk_%p [label=\"{Address: %p | Size: %d | Status: "
+            "%s}\"];\n",
+            (void *)w, (void *)w, chunk_get_units(w),
+            chunk_get_status(w) == CHUNK_FREE ? "FREE" : "IN_USE");
 
-//   // Dump the entire memory heap
-//   Chunk_T w;
-//   for (w = (Chunk_T)g_heap_start; (void *)w < g_heap_end;
-//        w = chunk_get_next_adjacent(w, g_heap_start, g_heap_end)) {
-//     fprintf(f,
-//             "  chunk_%p [label=\"{Address: %p | Size: %d | Status: "
-//             "%s}\"];\n",
-//             (void *)w, (void *)w, chunk_get_units(w),
-//             chunk_get_status(w) == CHUNK_FREE ? "FREE" : "IN_USE");
+    // link to next adjacent chunk
+    Chunk_T next = chunk_get_next_adjacent(w, g_heap_start,
+    g_heap_end); if (next != NULL) {
+      fprintf(f, "  chunk_%p -> chunk_%p [label=\"adjacent\"];\n",
+              (void *)w, (void *)next);
+    } else {
+      break;
+    }
+  }
 
-//     // Link to the next adjacent chunk
-//     Chunk_T next = chunk_get_next_adjacent(w, g_heap_start,
-//     g_heap_end); if (next != NULL) {
-//       fprintf(f, "  chunk_%p -> chunk_%p [label=\"adjacent\"];\n",
-//               (void *)w, (void *)next);
-//     } else {
-//       break;
-//     }
-//   }
+  // dump free list
+  for (w = g_free_head; w != NULL; w = chunk_get_next_free_chunk(w))
+  {
+    // next (next_free_chunk)
+    if (chunk_get_next_free_chunk(w)) {
+      fprintf(f,
+              "  chunk_%p -> chunk_%p [label=\"next\""
+              "color =\"green\"];\n",
+              (void *)w, (void *)chunk_get_next_free_chunk(w));
+    }
 
-//   // Dump the free list
-//   for (w = g_free_head; w != NULL; w = chunk_get_next_free_chunk(w))
-//   {
-//     // Forward link (next_free_chunk)
-//     if (chunk_get_next_free_chunk(w)) {
-//       fprintf(f,
-//               "  chunk_%p -> chunk_%p [label=\"next\""
-//               "color =\"green\"];\n",
-//               (void *)w, (void *)chunk_get_next_free_chunk(w));
-//     }
+    // prev (prev_free_chunk)
+    if (chunk_get_prev_free_chunk(w)) {
+      fprintf(f,
+              "  chunk_%p -> chunk_%p [label=\"prev\""
+              "color =\"blue\"];\n",
+              (void *)w, (void *)chunk_get_prev_free_chunk(w));
+    }
+  }
 
-//     // Backward link (prev_free_chunk)
-//     if (chunk_get_prev_free_chunk(w)) {
-//       fprintf(f,
-//               "  chunk_%p -> chunk_%p [label=\"prev\""
-//               "color =\"blue\"];\n",
-//               (void *)w, (void *)chunk_get_prev_free_chunk(w));
-//     }
-//   }
-
-//   fprintf(f, "}\n");
-//   fclose(f);
-// }
+  fprintf(f, "}\n");
+  fclose(f);
+}
+*/
