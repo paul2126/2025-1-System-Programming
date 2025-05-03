@@ -12,7 +12,6 @@ enum {
 };
 // static void dump_heap_to_dot(const char *filename);
 
-int iteration = 0;
 /* g_free_head: point to first chunk in the free list */
 static Chunk_T g_free_head = NULL;
 
@@ -314,23 +313,23 @@ void *heapmgr_malloc(size_t size) {
 
   for (c = g_free_head; c != NULL; c = chunk_get_next_free_chunk(c)) {
 
-    if (chunk_get_units(c) >= units) {
-      // remaining chunk should be big enough to have header and footer
-      if (chunk_get_units(c) >= units + 2)
-        c = split_chunk(c, units);
-      else if (chunk_get_units(c) == units) // perfect fit
-        remove_chunk_from_list(prev, c);    // use this chunk. remove it
-      else { // not big enough for header & footer
-        pprev = prev;
-        prev = c;
-        continue; // not enough space for header and footer
-      }
-
+    if (chunk_get_units(c) == units + 2) { // perfect fit
+      remove_chunk_from_list(prev, c);     // use this chunk. remove it
       assert(check_heap_validity());
       return (void *)((char *)c + CHUNK_UNIT);
     }
-    pprev = prev;
-    prev = c;
+    // too big, 5 for remaining chunk (at least 3 units)
+    else if (chunk_get_units(c) > units + 5) {
+      c = split_chunk(c, units); // split chunk
+      assert(check_heap_validity());
+      return (void *)((char *)c + CHUNK_UNIT);
+    } else { // too small or not enough space for header & footer
+      pprev = prev;
+      prev = c;
+      continue;
+    }
+    // pprev = prev;
+    // prev = c;
   }
 
   /* allocate new memory */
@@ -345,7 +344,7 @@ void *heapmgr_malloc(size_t size) {
   if (c == prev)
     prev = pprev;
 
-  if (chunk_get_units(c) >= units + 2) // header & footer
+  if (chunk_get_units(c) > units + 2) // header & footer
     c = split_chunk(c, units);
   else
     remove_chunk_from_list(prev, c);
@@ -418,8 +417,8 @@ static void dump_heap_to_dot(const char *filename) {
             chunk_get_status(w) == CHUNK_FREE ? "FREE" : "IN_USE");
 
     // link to next adjacent chunk
-    Chunk_T next = chunk_get_next_adjacent(w, g_heap_start,
-    g_heap_end); if (next != NULL) {
+    Chunk_T next = chunk_get_next_adjacent(w, g_heap_start, g_heap_end);
+    if (next != NULL) {
       fprintf(f, "  chunk_%p -> chunk_%p [label=\"adjacent\"];\n",
               (void *)w, (void *)next);
     } else {
@@ -428,8 +427,7 @@ static void dump_heap_to_dot(const char *filename) {
   }
 
   // dump free list
-  for (w = g_free_head; w != NULL; w = chunk_get_next_free_chunk(w))
-  {
+  for (w = g_free_head; w != NULL; w = chunk_get_next_free_chunk(w)) {
     // next (next_free_chunk)
     if (chunk_get_next_free_chunk(w)) {
       fprintf(f,
