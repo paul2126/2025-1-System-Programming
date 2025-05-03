@@ -8,7 +8,7 @@
             // "program": "${fileDirname}/${fileBasenameNoExtension}",
             // "program": "/home/attat/snu/2025-1-System-Programming/lab3/test/testheapmgr1",
             "program": "/home/attat/snu/sp/lab3/test/testheapmgr1",
-            "args": ["random_random", "50000", "1000"],
+            "args": ["random_fixed", "50", "10000"],
             "preLaunchTask": "gcc build active file",
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}/src",

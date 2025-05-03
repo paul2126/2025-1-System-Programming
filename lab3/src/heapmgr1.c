@@ -269,7 +269,7 @@ static Chunk_T allocate_more_memory(Chunk_T prev, size_t units) {
 
   g_heap_end = sbrk(0);
   chunk_set_units(c, units);
-  chunk_set_next_free_chunk(c, NULL);
+  // chunk_set_next_free_chunk(c, NULL);
   chunk_set_status(c, CHUNK_IN_USE);
 
   chunk_set_footer(c, units);         // set footer
@@ -316,7 +316,7 @@ void *heapmgr_malloc(size_t size) {
 
     if (chunk_get_units(c) >= units) {
       // remaining chunk should be big enough to have header and footer
-      if (chunk_get_units(c) >= units + 2)
+      if (chunk_get_units(c) > units + 2)
         c = split_chunk(c, units);
       else if (chunk_get_units(c) == units) // perfect fit
         remove_chunk_from_list(prev, c);    // use this chunk. remove it
@@ -345,7 +345,7 @@ void *heapmgr_malloc(size_t size) {
   if (c == prev)
     prev = pprev;
 
-  if (chunk_get_units(c) >= units + 2) // header & footer
+  if (chunk_get_units(c) > units + 2) // header & footer
     c = split_chunk(c, units);
   else
     remove_chunk_from_list(prev, c);
