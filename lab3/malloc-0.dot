@@ -1,0 +1,6 @@
+digraph CombinedHeap {
+  node [shape=record];
+  chunk_0x55f271b85000 [label="{Address: 0x55f271b85000 | Size: 1006 | Status: FREE}"];
+  chunk_0x55f271b85000 -> chunk_0x55f271b8ae80 [label="adjacent"];
+  chunk_0x55f271b8ae80 [label="{Address: 0x55f271b8ae80 | Size: 16 | Status: IN_USE}"];
+}
