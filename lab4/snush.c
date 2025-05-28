@@ -46,6 +46,7 @@ static void terminate_jobs() {
   struct job *curr = manager->jobs;
   struct job *next = NULL;
 
+  // implement kill//////////////////////////////////////////////////
   while (curr != NULL) {
     manager->n_jobs--;
     next = curr->next;
@@ -107,10 +108,26 @@ static void sigchld_handler(int signo) {
 
   pid_t pid;
   int stat;
+  struct job *job;
+  struct job *cur_job;
 
   if (signo == SIGCHLD) {
 
     while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
+      cur_job = manager->jobs;
+      while (cur_job != NULL) { // loop jobs
+        for (int i = 0; i < cur_job->total_num; i++) {
+          if (cur_job->pid_list[i] == pid) { // found job
+            job = cur_job;
+          }
+        }
+        cur_job = cur_job->next;
+      }
+      if (WIFEXITED(stat)) {
+        error_print("Child process exited", PERROR);
+        job = find_job_by_jid(1);
+        job->state = stopped;
+      }
       //
       // TODO sigchld_handler() in snush.c start
       //
