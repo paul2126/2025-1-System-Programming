@@ -149,22 +149,56 @@ void print_job(int jobid, pid_t pgid) {
 }
 /*---------------------------------------------------------------------------*/
 int fork_exec(DynArray_T oTokens, int is_background) {
-  //
-  // TODO-START: fork_exec() in execute.c
-  //
-  // If you want to run the newely forked process in the foreground,
-  // call wait_fg(). If you want to run the newely forked process
-  // in the background, call print_job().
-  // All the exited processes should be handled in
-  // the sigchld_handler() in snush.c.
-  //
+  char *args[MAX_ARGS_CNT];
+  build_command(oTokens, args);
 
-  int jobid = 1;
-  return jobid;
+  // create job
+  int job_id = 0;
+  if (is_background) { // 1: background
+    job_id = add_job(background);
+  } else { // 0: foreground
+    job_id = add_job(foreground);
+  }
 
-  //
-  // TODO-END: fork_exec() in execute.c
-  //
+  pid_t pid = fork();
+  if (pid < 0) {
+    perror("fork failed");
+    exit(EXIT_FAILURE);
+  }
+
+  if (pid == 0) { // child
+    // set pgid
+    if (setpgid(0, 0) < 0) {
+      perror("setpgid failed");
+      exit(EXIT_FAILURE);
+    }
+
+    execvp(args[0], args);
+    error_print(args[0], PERROR);
+    exit(EXIT_FAILURE);
+  } else { // parent
+    // set pgid of child
+    // if (setpgid(pid, pid) < 0 && errno != EACCES) {
+    //   perror("setpgid failed");
+    //   exit(EXIT_FAILURE);
+    // }
+
+    // set element of job
+    struct job *job = find_job_by_jid(job_id);
+    job->pgid = pid;
+    job->pid_list = malloc(sizeof(pid_t));
+    job->pid_list[0] = pid;
+    job->total_num = 1;
+    job->curr_num = 1;
+
+    if (is_background) {
+      print_job(job_id, pid);
+    } else {
+      wait_fg(job_id);
+    }
+  }
+
+  return job_id;
 }
 /*---------------------------------------------------------------------------*/
 int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
