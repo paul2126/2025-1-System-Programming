@@ -53,7 +53,7 @@ struct job *find_job_fg() {
 /*---------------------------------------------------------------------------*/
 // create and add job to the manager
 // return job id
-int add_job(char *args, job_state state) {
+int add_job(job_state state) {
   // create job
   struct job *new_job = (struct job *)malloc(sizeof(struct job));
   new_job->job_id = manager->n_jobs + 1;
@@ -74,6 +74,7 @@ int add_job(char *args, job_state state) {
     }
     current->next = new_job;
   }
+  manager->n_jobs++;
   return new_job->job_id;
 }
 /*---------------------------------------------------------------------------*/
