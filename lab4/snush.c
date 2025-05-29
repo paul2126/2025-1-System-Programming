@@ -108,33 +108,36 @@ static void sigchld_handler(int signo) {
 
   pid_t pid;
   int stat;
-  struct job *job;
-  struct job *cur_job;
 
   if (signo == SIGCHLD) {
-
+    // get all terminated children
     while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
-      cur_job = manager->jobs;
-      while (cur_job != NULL) { // loop jobs
+      int found_job = 0; // for breaking out of middle while
+      struct job *job = NULL;
+      struct job *cur_job = manager->jobs;
+      while (!found_job && cur_job != NULL) { // loop jobs
         for (int i = 0; i < cur_job->total_num; i++) {
           if (cur_job->pid_list[i] == pid) { // found job
             job = cur_job;
+            found_job = 1;
+            break;
           }
         }
         cur_job = cur_job->next;
       }
-      if (WIFEXITED(stat)) {
-        error_print("Child process exited", PERROR);
-        job = find_job_by_jid(1);
-        job->state = stopped;
+      if (WIFEXITED(stat) || WIFSIGNALED(stat)) {
+        if (job != NULL) {
+          job->curr_num--;
+          if (job->curr_num == 0) {
+            // need to remove job to prevent infinite loop
+            job->state = stopped;
+            manager->done_bg_jobs = job;
+            manager->jobs = job->next;
+            job = job->next;
+            manager->n_jobs--;
+          }
+        }
       }
-      //
-      // TODO sigchld_handler() in snush.c start
-      //
-
-      //
-      // TODO sigchld_handler() in snush.c end
-      //
     }
 
     if (pid < 0 && errno != ECHILD && errno != EINTR) {
