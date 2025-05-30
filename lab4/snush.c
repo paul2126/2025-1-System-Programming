@@ -130,8 +130,10 @@ static void sigchld_handler(int signo) {
           job->curr_num--;
           if (job->curr_num == 0) {
             // need to remove job to prevent infinite loop
+            if (job->state == background) {
+              manager->done_bg_jobs = job;
+            }
             job->state = stopped;
-            manager->done_bg_jobs = job;
             manager->jobs = job->next;
             job = job->next;
             manager->n_jobs--;
