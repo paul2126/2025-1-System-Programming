@@ -152,7 +152,12 @@ void print_job(int jobid, pid_t pgid) {
 /*---------------------------------------------------------------------------*/
 int fork_exec(DynArray_T oTokens, int is_background) {
   char *args[MAX_ARGS_CNT];
-  build_command(oTokens, args);
+  int pgid = 0; // pgid of the first process
+  pid_t pid;
+
+  sigset_t mask_all, mask_prev;
+  sigfillset(&mask_all);
+  sigprocmask(SIG_BLOCK, &mask_all, &mask_prev);
 
   // create job
   int job_id = 0;
@@ -162,45 +167,57 @@ int fork_exec(DynArray_T oTokens, int is_background) {
     job_id = add_job(foreground);
   }
 
-  pid_t pid = fork();
+  // get job
+  struct job *job = find_job_by_jid(job_id);
+  job->total_num = 1;
+  job->curr_num = job->total_num;
+  job->pid_list = malloc(sizeof(pid_t) * (1));
+  if (job->pid_list == NULL) {
+    perror("malloc failed");
+    exit(EXIT_FAILURE);
+  }
+  // fork
+  pid = fork();
   if (pid < 0) {
     perror("fork failed");
     exit(EXIT_FAILURE);
   }
 
   if (pid == 0) { // child
+    // unblock signals
+    sigprocmask(SIG_SETMASK, &mask_prev, NULL);
+
     // set pgid
-    if (setpgid(0, 0) < 0) {
+    if (setpgid(0, pgid) < 0) {
       perror("setpgid failed");
       exit(EXIT_FAILURE);
     }
+    pgid = getpgid(0);
+
+    // build cmd
+    build_command(oTokens, args);
 
     execvp(args[0], args);
     error_print(args[0], PERROR);
     exit(EXIT_FAILURE);
   } else { // parent
-    // set pgid of child
-    // if (setpgid(pid, pid) < 0 && errno != EACCES) {
-    //   perror("setpgid failed");
-    //   exit(EXIT_FAILURE);
-    // }
-
-    // set element of job
-    struct job *job = find_job_by_jid(job_id);
-    job->pgid = pid;
-    job->pid_list = malloc(sizeof(pid_t));
+    // update job
+    job->pgid = pid; // set pgid of first process
+    // add pid to list and increment counter
     job->pid_list[0] = pid;
-    job->total_num = 1;
-    job->curr_num = 1;
-
-    if (is_background) {
-      print_job(job_id, pid);
-    } else {
-      wait_fg(job_id);
-    }
   }
 
+  // unblock signals
+  sigprocmask(SIG_SETMASK, &mask_prev, NULL);
+  if (is_background) {
+    print_job(job_id, pid);
+  } else {
+    wait_fg(job_id);
+  }
+
+  free(job->pid_list);
   return job_id;
+  //-----------------------------------------------------------------
 }
 /*---------------------------------------------------------------------------*/
 void find_pipe_loc(DynArray_T oTokens, int *start, int *end) {
