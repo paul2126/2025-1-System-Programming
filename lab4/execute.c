@@ -152,7 +152,6 @@ void print_job(int jobid, pid_t pgid) {
 /*---------------------------------------------------------------------------*/
 int fork_exec(DynArray_T oTokens, int is_background) {
   char *args[MAX_ARGS_CNT];
-  int pgid = 0; // pgid of the first process
   pid_t pid;
 
   sigset_t mask_all, mask_prev;
@@ -188,11 +187,10 @@ int fork_exec(DynArray_T oTokens, int is_background) {
     sigprocmask(SIG_SETMASK, &mask_prev, NULL);
 
     // set pgid
-    if (setpgid(0, pgid) < 0) {
+    if (setpgid(0, 0) < 0) {
       perror("setpgid failed");
       exit(EXIT_FAILURE);
     }
-    pgid = getpgid(0);
 
     // build cmd
     build_command(oTokens, args);
@@ -201,6 +199,19 @@ int fork_exec(DynArray_T oTokens, int is_background) {
     error_print(args[0], PERROR);
     exit(EXIT_FAILURE);
   } else { // parent
+    // just in case if parent runs first
+    if (setpgid(pid, pid) < 0 && errno != EACCES && errno != EEXIST) {
+      // perror("setpgid (parent) failed");
+    }
+
+    // give terminal control to child
+    if (!is_background) {
+      if (tcsetpgrp(STDIN_FILENO, pid) < 0) {
+        perror("tcsetpgrp failed");
+        exit(EXIT_FAILURE);
+      }
+    }
+
     // update job
     job->pgid = pid; // set pgid of first process
     // add pid to list and increment counter
@@ -214,6 +225,23 @@ int fork_exec(DynArray_T oTokens, int is_background) {
   } else {
     wait_fg(job_id);
   }
+
+  // ignore SIGTTOU / SIGTTIN signal (caused when background talks to
+  // terminal)
+  struct sigaction old_ttou, old_ttin, ign = {.sa_handler = SIG_IGN};
+  sigemptyset(&ign.sa_mask);
+  sigaction(SIGTTOU, &ign, &old_ttou);
+  sigaction(SIGTTIN, &ign, &old_ttin);
+  // return control to the terminal
+  if (!is_background) {
+    if (tcsetpgrp(STDIN_FILENO, getpgrp()) < 0) {
+      perror("tcsetpgrp failed");
+      exit(EXIT_FAILURE);
+    }
+  }
+  // restore previous signal
+  sigaction(SIGTTOU, &old_ttou, NULL);
+  sigaction(SIGTTIN, &old_ttin, NULL);
 
   free(job->pid_list);
   return job_id;
@@ -349,6 +377,10 @@ int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
       error_print(args[0], PERROR);
       exit(EXIT_FAILURE);
     } else { // parent
+      // just in case if parent runs first
+      if (setpgid(pid, pid) < 0 && errno != EACCES && errno != EEXIST) {
+        // perror("setpgid (parent) failed");
+      }
       if (i != 0) {
         if (save_fd != -1) {
           // close previous cmd stdout. need to close to send EOF to
@@ -377,6 +409,23 @@ int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
     print_job(job_id, pid);
   } else {
     wait_fg(job_id);
+
+    // ignore SIGTTOU / SIGTTIN signal (caused when background talks to
+    // terminal)
+    struct sigaction old_ttou, old_ttin, ign = {.sa_handler = SIG_IGN};
+    sigemptyset(&ign.sa_mask);
+    sigaction(SIGTTOU, &ign, &old_ttou);
+    sigaction(SIGTTIN, &ign, &old_ttin);
+    // return control to the terminal
+    if (!is_background) {
+      if (tcsetpgrp(STDIN_FILENO, getpgrp()) < 0) {
+        perror("tcsetpgrp failed");
+        exit(EXIT_FAILURE);
+      }
+    }
+    // restore previous signal
+    sigaction(SIGTTOU, &old_ttou, NULL);
+    sigaction(SIGTTIN, &old_ttin, NULL);
   }
 
   free(job->pid_list);
