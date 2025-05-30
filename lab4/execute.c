@@ -14,13 +14,15 @@
 // extern struct job_manager *manager;
 /*---------------------------------------------------------------------------*/
 void redout_handler(char *fname) {
-  //
-  // TODO: redout_handler() in execute.c
-  //
-
-  //
-  // TODO: redout_handler() in execute.c
-  //
+  int fd;
+  fd = open(fname, O_CREAT | O_RDWR | O_TRUNC, 0644);
+  if (fd < 0) {
+    error_print(NULL, PERROR);
+    exit(EXIT_FAILURE);
+  } else {
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+  }
 }
 /*---------------------------------------------------------------------------*/
 void redin_handler(char *fname) {
