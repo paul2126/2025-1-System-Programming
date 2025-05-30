@@ -243,7 +243,7 @@ int fork_exec(DynArray_T oTokens, int is_background) {
   sigaction(SIGTTOU, &old_ttou, NULL);
   sigaction(SIGTTIN, &old_ttin, NULL);
 
-  free(job->pid_list);
+  // free(job->pid_list);
   return job_id;
   //-----------------------------------------------------------------
 }
@@ -428,7 +428,7 @@ int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
     sigaction(SIGTTIN, &old_ttin, NULL);
   }
 
-  free(job->pid_list);
+  // free(job->pid_list);
   return job_id;
 }
 /*---------------------------------------------------------------------------*/

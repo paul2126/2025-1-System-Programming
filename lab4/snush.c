@@ -33,23 +33,36 @@ static void check_error_flag() {
 }
 /*---------------------------------------------------------------------------*/
 static void check_bg_status() {
-  //
-  // TODO: check_bg_status() start
-  //
+  struct job *curr = manager->done_bg_jobs;
+  // print finish jobs
+  while (curr != NULL) {
+    fprintf(stdout, "[%d] Process group: %d done\n", curr->job_id,
+            curr->pgid);
+    fflush(stdout);
 
-  //
-  // TODO: check_bg_status() end
-  //
+    manager->done_bg_jobs = curr->next;
+    // remove done jobs
+    free(curr->pid_list);
+    free(curr);
+    // move curr to next
+    curr = manager->done_bg_jobs;
+  }
 }
 /*---------------------------------------------------------------------------*/
 static void terminate_jobs() {
   struct job *curr = manager->jobs;
   struct job *next = NULL;
+  pid_t pgid;
 
   // implement kill//////////////////////////////////////////////////
   while (curr != NULL) {
+    pgid = curr->pgid;
+    if (pgid != 0) {
+      kill(-pgid, SIGKILL);
+    }
     manager->n_jobs--;
     next = curr->next;
+    free(curr->pid_list);
     free(curr);
     curr = next;
   }
@@ -59,6 +72,7 @@ static void terminate_jobs() {
   curr = manager->done_bg_jobs;
   while (curr != NULL) {
     next = curr->next;
+    free(curr->pid_list);
     free(curr);
     curr = next;
   }
@@ -169,8 +183,11 @@ static void shell_helper(const char *in_line) {
   lexcheck = lex_line(in_line, oTokens);
   switch (lexcheck) {
   case LEX_SUCCESS:
-    if (dynarray_get_length(oTokens) == 0)
+    if (dynarray_get_length(oTokens) == 0) {
+      dynarray_map(oTokens, free_token, NULL);
+      dynarray_free(oTokens);
       return;
+    }
 
     /* dump lex result when DEBUG is set */
     dump_lex(oTokens);
