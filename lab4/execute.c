@@ -205,7 +205,7 @@ int fork_exec(DynArray_T oTokens, int is_background) {
     }
 
     // give terminal control to child
-    if (!is_background) {
+    if (!is_background && isatty(STDIN_FILENO)) {
       if (tcsetpgrp(STDIN_FILENO, pid) < 0) {
         perror("tcsetpgrp failed");
         exit(EXIT_FAILURE);
@@ -216,10 +216,10 @@ int fork_exec(DynArray_T oTokens, int is_background) {
     job->pgid = pid; // set pgid of first process
     // add pid to list and increment counter
     job->pid_list[0] = pid;
+    // unblock signals
+    sigprocmask(SIG_SETMASK, &mask_prev, NULL);
   }
 
-  // unblock signals
-  sigprocmask(SIG_SETMASK, &mask_prev, NULL);
   if (is_background) {
     print_job(job_id, pid);
   } else {
@@ -227,7 +227,7 @@ int fork_exec(DynArray_T oTokens, int is_background) {
   }
 
   // return control to the terminal
-  if (!is_background) {
+  if (!is_background && isatty(STDIN_FILENO)) {
     // ignore SIGTTOU / SIGTTIN signal (caused when background talks to
     // terminal)
     struct sigaction old_ttou, old_ttin, ign = {.sa_handler = SIG_IGN};
@@ -386,6 +386,7 @@ int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
           errno != EEXIST) {
         // perror("setpgid (parent) failed");
       }
+
       if (i != 0) {
         if (save_fd != -1) {
           // close previous cmd stdout. need to close to send EOF to
@@ -406,26 +407,24 @@ int iter_pipe_fork_exec(int n_pipe, DynArray_T oTokens,
       }
       // add pid to list and increment counter
       job->pid_list[i] = pid;
+      // unblock signals
+      sigprocmask(SIG_SETMASK, &mask_prev, NULL);
     }
   }
-
   // give terminal control to child
-  if (!is_background) {
+  if (!is_background && isatty(STDIN_FILENO)) {
     if (tcsetpgrp(STDIN_FILENO, pgid) < 0) {
       perror("tcsetpgrp failed");
       exit(EXIT_FAILURE);
     }
   }
-
-  // unblock signals
-  sigprocmask(SIG_SETMASK, &mask_prev, NULL);
   if (is_background) {
     print_job(job_id, pid);
   } else {
     wait_fg(job_id);
 
     // return control to the terminal
-    if (!is_background) {
+    if (!is_background && isatty(STDIN_FILENO)) {
       // ignore SIGTTOU / SIGTTIN signal (caused when background talks
       // to terminal)
       struct sigaction old_ttou, old_ttin,
