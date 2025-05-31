@@ -82,8 +82,6 @@ static void terminate_jobs() {
 /*---------------------------------------------------------------------------*/
 void cleanup() {
   terminate_jobs();
-  // just in case
-  tcsetpgrp(STDIN_FILENO, getpgrp());
 
   // kill all process
   for (struct job *curr = manager->jobs; curr; curr = curr->next) {
