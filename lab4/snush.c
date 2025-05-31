@@ -82,13 +82,26 @@ static void terminate_jobs() {
 /*---------------------------------------------------------------------------*/
 void cleanup() {
   terminate_jobs();
-  //
-  // TODO: cleanup() start
-  //
+  // just in case
+  tcsetpgrp(STDIN_FILENO, getpgrp());
 
-  //
-  // TODO: cleanup() end
-  //
+  // kill all process
+  for (struct job *curr = manager->jobs; curr; curr = curr->next) {
+    if (curr->pgid && curr->pgid != getpgrp()) {
+      kill(-curr->pgid, SIGKILL);
+    }
+  }
+
+  while (waitpid(-1, NULL, WNOHANG) > 0)
+    ; // reap all children
+
+  // restore default signal handlers
+  signal(SIGINT, SIG_DFL);
+  signal(SIGQUIT, SIG_DFL);
+  signal(SIGCHLD, SIG_DFL);
+  signal(SIGPIPE, SIG_DFL);
+  signal(SIGTSTP, SIG_DFL);
+
   free(manager);
 }
 /*---------------------------------------------------------------------------*/
@@ -123,33 +136,49 @@ static void sigchld_handler(int signo) {
   pid_t pid;
   int stat;
 
+  int save_errorno = errno; // save errno to restore later
+
   if (signo == SIGCHLD) {
     // get all terminated children
     while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
       int found_job = 0; // for breaking out of middle while
-      struct job *job = NULL;
+      struct job *prev_job = NULL;
       struct job *cur_job = manager->jobs;
       while (!found_job && cur_job != NULL) { // loop jobs
         for (int i = 0; i < cur_job->total_num; i++) {
           if (cur_job->pid_list[i] == pid) { // found job
-            job = cur_job;
             found_job = 1;
             break;
           }
         }
+        if (found_job) { // break from outer while
+          break;
+        }
+        // when not found move to next job
+        prev_job = cur_job;
         cur_job = cur_job->next;
       }
       if (WIFEXITED(stat) || WIFSIGNALED(stat)) {
-        if (job != NULL) {
-          job->curr_num--;
-          if (job->curr_num == 0) {
-            // need to remove job to prevent infinite loop
-            if (job->state == background) {
-              manager->done_bg_jobs = job;
+        if (cur_job != NULL) {
+          cur_job->curr_num--;
+          if (cur_job->curr_num == 0) {
+            // unlink job from job list
+            if (prev_job == NULL) { // first job
+              manager->jobs = cur_job->next;
+            } else { // middle / last job
+              prev_job->next = cur_job->next;
             }
-            job->state = stopped;
-            manager->jobs = job->next;
-            job = job->next;
+
+            // need to remove job to prevent infinite loop
+            if (cur_job->state == background) {
+              cur_job->next = manager->done_bg_jobs;
+              manager->done_bg_jobs = cur_job;
+            }
+            if (cur_job->state == foreground) {
+              free(cur_job->pid_list);
+              free(cur_job);
+            }
+            // cur_job->state = stopped;
             manager->n_jobs--;
           }
         }
@@ -160,6 +189,7 @@ static void sigchld_handler(int signo) {
       error_flag = 1;
     }
   }
+  errno = save_errorno; // restore errno
 
   return;
 }
