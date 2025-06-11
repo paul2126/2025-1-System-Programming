@@ -1,0 +1,20 @@
+{
+    "tasks": [
+        {
+            "type": "shell",
+            "label": "build all",
+            "command": "make",
+            "args": [
+                "all"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/src"
+            },
+            "group": "build",
+            "problemMatcher": [
+                "$gcc"
+            ]
+        }
+    ],
+    "version": "2.0.0"
+}
