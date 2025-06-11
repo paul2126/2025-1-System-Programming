@@ -1,0 +1,4 @@
+RyuMyungHyun 2019-13930
+
+isatty() was used to check if the input is comming from a terminal.
+If it is not, the program does not run tcsetpgrp().
