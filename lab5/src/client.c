@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------*/
-/* client.c                                                                  */
-/* Author: Junghan Yoon, KyoungSoo Park                                      */
-/* Modified by: (Your Name)                                                  */
+/* client.c */
+/* Author: Junghan Yoon, KyoungSoo Park */
+/* Modified by: (Your Name) */
 /*---------------------------------------------------------------------------*/
 #define _GNU_SOURCE
 #include "common.h"
@@ -15,51 +15,46 @@
 #include <string.h>
 #include <unistd.h>
 /*---------------------------------------------------------------------------*/
-int
-main (int argc, char *argv[])
-{
-    char *ip = DEFAULT_LOOPBACK_IP;
-    int port = DEFAULT_PORT;
-    int interactive = 0; /* Default is non-interactive mode */
-    int opt;
+int main(int argc, char *argv[]) {
+  char *ip = DEFAULT_LOOPBACK_IP;
+  int port = DEFAULT_PORT;
+  int interactive = 0; /* Default is non-interactive mode */
+  int opt;
 
-    /*---------------------------------------------------------------------------*/
-    /* free to declare any variables */
+  /*---------------------------------------------------------------------------*/
+  /* free to declare any variables */
 
-    /*---------------------------------------------------------------------------*/
+  /*---------------------------------------------------------------------------*/
 
-    /* parse command line options */
-    while ((opt = getopt (argc, argv, "i:p:th")) != -1)
-    {
-        switch (opt)
-        {
-        case 'i':
-            ip = optarg;
-            break;
-        case 'p':
-            port = atoi (optarg);
-            if (port <= 1024 || port >= 65536)
-            {
-                perror ("Invalid port number");
-                exit (EXIT_FAILURE);
-            }
-            break;
-        case 't':
-            interactive = 1;
-            break;
-        case 'h':
-        default:
-            printf ("Usage: %s [-i server_ip_or_domain (%s)] "
-                    "[-p port (%d)] [-t]\n",
-                    argv[0], DEFAULT_LOOPBACK_IP, DEFAULT_PORT);
-            exit (EXIT_FAILURE);
-        }
+  /* parse command line options */
+  while ((opt = getopt(argc, argv, "i:p:th")) != -1) {
+    switch (opt) {
+    case 'i':
+      ip = optarg;
+      break;
+    case 'p':
+      port = atoi(optarg);
+      if (port <= 1024 || port >= 65536) {
+        perror("Invalid port number");
+        exit(EXIT_FAILURE);
+      }
+      break;
+    case 't':
+      interactive = 1;
+      break;
+    case 'h':
+    default:
+      printf("Usage: %s [-i server_ip_or_domain (%s)] "
+             "[-p port (%d)] [-t]\n",
+             argv[0], DEFAULT_LOOPBACK_IP, DEFAULT_PORT);
+      exit(EXIT_FAILURE);
     }
+  }
 
-    /*---------------------------------------------------------------------------*/
-    /* edit here */
+  /*---------------------------------------------------------------------------*/
+  /* edit here */
 
-    /*---------------------------------------------------------------------------*/
+  /*---------------------------------------------------------------------------*/
 
-    return 0;
+  return 0;
 }
