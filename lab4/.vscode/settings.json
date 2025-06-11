@@ -4,6 +4,7 @@
         "wait.h": "c",
         "fcntl.h": "c",
         "features.h": "c",
-        "util.h": "c"
+        "util.h": "c",
+        "job.h": "c"
     }
 }

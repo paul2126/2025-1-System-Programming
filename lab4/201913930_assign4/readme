@@ -1,0 +1,7 @@
+RyuMyungHyun 2019-13930
+
+This code takes into account for case where the ./snush is ran as following
+```
+./snush < testcase.txt
+```
+so isatty(STDIN_FILENO) was used to check if it is comming from terminal
