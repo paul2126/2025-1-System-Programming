@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------*/
 /* client.c */
 /* Author: Junghan Yoon, KyoungSoo Park */
-/* Modified by: (Your Name) */
+/* Modified by: RyuMyungHyun */
 /*---------------------------------------------------------------------------*/
 #define _GNU_SOURCE
 #include "common.h"
@@ -53,6 +53,80 @@ int main(int argc, char *argv[]) {
 
   /*---------------------------------------------------------------------------*/
   /* edit here */
+
+  printf("Connecting to server at %s:%d\n", ip, port);
+
+  struct addrinfo hints, *res, *rp;
+  int conn_fd;
+  memset(&hints, 0, sizeof(hints));
+  memset(&res, 0, sizeof(res));
+  memset(&rp, 0, sizeof(rp));
+
+  // set socket
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+
+  // resolve address
+  char port_str[6];
+  snprintf(port_str, sizeof(port_str), "%d", port);
+  if (getaddrinfo(ip, port_str, &hints, &res) < 0) {
+    perror("getaddrinfo failed");
+    exit(EXIT_FAILURE);
+  }
+
+  // try each result until we successfully connect
+  for (rp = res; rp != NULL; rp = rp->ai_next) {
+    conn_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
+    if (conn_fd == -1) // no socket made
+      continue;
+
+    if (connect(conn_fd, rp->ai_addr, rp->ai_addrlen) == 0)
+      break; // connection success
+
+    close(conn_fd); // try next
+  }
+
+  if (rp == NULL) {
+    perror("no connection");
+    freeaddrinfo(res);
+    exit(EXIT_FAILURE);
+  }
+
+  printf("Connected to server (getaddrinfo)\n");
+
+  int BUF_SIZE = 10; // buffer size for messages
+  char buffer[BUF_SIZE];
+
+  // test sending message
+  while (1) {
+    // Send message
+    printf("Enter message (or 'quit'): ");
+    if (!fgets(buffer, BUF_SIZE, stdin))
+      break;
+
+    if (strncmp(buffer, "quit", 4) == 0)
+      break;
+
+    if (send(conn_fd, buffer, strlen(buffer), 0) < 0) {
+      perror("send");
+      break;
+    }
+
+    // Receive response
+    ssize_t len = recv(conn_fd, buffer, BUF_SIZE - 1, 0);
+    if (len < 0) {
+      perror("recv");
+      break;
+    } else if (len == 0) {
+      printf("Server closed connection.\n");
+      break;
+    }
+
+    buffer[len] = '\0'; // null-terminate
+    printf("Server replied: %s\n", buffer);
+  }
+  freeaddrinfo(res); // clean up
+  close(conn_fd);
 
   /*---------------------------------------------------------------------------*/
 

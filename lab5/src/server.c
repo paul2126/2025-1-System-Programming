@@ -1,7 +1,7 @@
 /*---------------------------------------------------------------------------*/
 /* server.c */
 /* Author: Junghan Yoon, KyoungSoo Park */
-/* Modified by: (Your Name) */
+/* Modified by: RyuMyungHyun */
 /*---------------------------------------------------------------------------*/
 #define _GNU_SOURCE
 #include "common.h"
@@ -9,6 +9,7 @@
 #include <arpa/inet.h>
 #include <errno.h>
 #include <getopt.h>
+#include <netdb.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -46,6 +47,7 @@ void *handle_client(void *arg) {
 
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  printf("%d fd: %d\n", idx, listenfd);
 
   /*---------------------------------------------------------------------------*/
 
@@ -138,6 +140,89 @@ int main(int argc, char *argv[]) {
   /*---------------------------------------------------------------------------*/
   /* edit here */
 
+  printf("Server started on %s:%d with %d threads, "
+         "hash size: %zu, rwlock delay: %d\n",
+         ip, port, num_threads, hash_size, delay);
+
+  struct addrinfo hints, *res, *rp;
+  memset(&hints, 0, sizeof hints);
+  hints.ai_family = AF_INET;
+  hints.ai_socktype = SOCK_STREAM;
+  hints.ai_flags = AI_PASSIVE;
+
+  char port_str[6]; // enough for 5-digit port + null
+  snprintf(port_str, sizeof(port_str), "%d", port);
+  if (getaddrinfo(NULL, port_str, &hints, &res) < 0) {
+    perror("getaddrinfo");
+    return EXIT_FAILURE;
+  }
+
+  // create bind
+  for (rp = res; rp != NULL; rp = rp->ai_next) {
+    if (bind(listen_fd, rp->ai_addr, rp->ai_addrlen) == 0)
+      break; /* success */
+
+    close(listen_fd);
+    listen_fd = -1;
+  }
+  freeaddrinfo(res);
+
+  // check bind result
+  if (listen_fd == -1) {
+    perror("bind");
+    return EXIT_FAILURE;
+  }
+
+  // listen
+  if (listen(listen_fd, 10) == -1) {
+    perror("listen");
+    close(listen_fd);
+    return EXIT_FAILURE;
+  }
+
+    while (1) {
+    // accept
+    struct sockaddr_storage client_addr;
+    socklen_t addrlen = sizeof client_addr;
+    int client_fd =
+        accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
+    if (client_fd == -1) {
+      if (errno == EINTR)
+        break; /* interrupted by Ctrl-C */
+      perror("accept");
+      continue;
+    }
+
+    /* Print remote address */
+    char host[NI_MAXHOST], serv[NI_MAXSERV];
+    if (getnameinfo((struct sockaddr *)&client_addr, addrlen, host,
+                    sizeof host, serv, sizeof serv,
+                    NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
+      printf("Client connected: %s:%s\n", host, serv);
+    }
+
+    while (1) {
+      /* Echo loop */
+      char buf[10];
+      ssize_t n;
+      while ((n = recv(client_fd, buf, sizeof buf, 0)) > 0) {
+        if (send(client_fd, buf, n, 0) != n) {
+          perror("send");
+          break;
+        }
+      }
+      if (n == -1)
+        perror("recv");
+    }
+
+    close(client_fd);
+    printf("Client disconnected.\n");
+  }
+
+  /* 5. Cleanup */
+  close(listen_fd);
+  printf("Server terminated.\n");
+  return EXIT_SUCCESS;
   /*---------------------------------------------------------------------------*/
 
   return 0;
