@@ -66,6 +66,20 @@ int rwlock_read_lock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  if (pthread_mutext_lock(&rw->lock) != 0) {
+    return -1; // fail to lock mutext
+  }
+  while (rw->write_count > 0) {
+    if (pthread_cond_wait(&rw->readers, &rw->lock) != 0) {
+      // attempt to unlock before returning
+      pthread_mutex_unlock(&rw->lock);
+      return -1;
+    }
+  }
+  rw->read_count++;
+  if (pthread_mutext_unlock(&rw->lock) != 0) {
+    return -1; // fail to unlock mutext
+  }
 
   /*---------------------------------------------------------------------------*/
   return 0;
@@ -76,6 +90,20 @@ int rwlock_read_unlock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  if (pthread_mutex_lock(&rw->lock) != 0) {
+    return -1; // fail to lock mutext
+  }
+  rw->read_count--;
+  if (rw->read_count == 0 && rw->write_count > 0) {
+    if (pthread_cond_broadcast(&rw->writers) != 0) {
+      pthread_mutex_unlock(&rw->lock);
+      return -1; // fail to broadcast condition variable
+    }
+  }
+
+  if (pthread_mutex_unlock(&rw->lock) != 0) {
+    return -1; // fail to unlock mutext
+  }
 
   /*---------------------------------------------------------------------------*/
   return 0;
@@ -85,7 +113,28 @@ int rwlock_write_lock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
-
+  if (pthread_mutext_lock(&rw->lock) != 0) {
+    return -1; // fail to lock mutext
+  }
+  while (rw->read_count > 0 || rw->write_count > 0 ||
+         !pthread_equal(rw->writer_ring[rw->writer_ring_tail],
+                        pthread_self())) {
+    // checking if there is reader or writer
+    // or if the current thread is not the last
+    // then wait
+    if (pthread_cond_wait(&rw->writers, &rw->lock) != 0) {
+      // attempt to unlock before returning
+      pthread_mutex_unlock(&rw->lock);
+      return -1;
+    }
+  }
+  // start writing
+  rw->write_count++;
+  // deque from writer ring
+  rw->writer_ring_tail = (rw->writer_ring_tail + 1) % WRITER_RING_SIZE;
+  if (pthread_mutext_unlock(&rw->lock) != 0) {
+    return -1; // fail to unlock mutext
+  }
   /*---------------------------------------------------------------------------*/
   return 0;
 }
@@ -95,7 +144,27 @@ int rwlock_write_unlock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  if (pthread_mutex_lock(&rw->lock) != 0) {
+    return -1; // fail to lock mutext
+  }
+  rw->write_count--;
+  if (rw->write_count == 0 && rw->read_count > 0) {
+    // first give priority to readers
+    if (pthread_cond_broadcast(&rw->readers) != 0) {
+      pthread_mutex_unlock(&rw->lock);
+      return -1; // fail to broadcast condition variable
+    }
 
+    // wake up the next writer
+    if (pthread_cond_broadcast(&rw->writers) != 0) {
+      pthread_mutex_unlock(&rw->lock);
+      return -1; // fail to broadcast condition variable
+    }
+  }
+
+  if (pthread_mutex_unlock(&rw->lock) != 0) {
+    return -1; // fail to unlock mutext
+  }
   /*---------------------------------------------------------------------------*/
   return 0;
 }
