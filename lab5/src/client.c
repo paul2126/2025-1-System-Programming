@@ -55,7 +55,7 @@ int main(int argc, char *argv[]) {
   /* edit here */
 
   printf("Connecting to server at %s:%d\n", ip, port);
-
+  printf("Interactive mode: %s\n", interactive ? "ON" : "OFF");
   struct addrinfo hints, *res, *rp;
   int conn_fd;
   memset(&hints, 0, sizeof(hints));
@@ -94,14 +94,13 @@ int main(int argc, char *argv[]) {
 
   printf("Connected to server (getaddrinfo)\n");
 
-  int BUF_SIZE = 10; // buffer size for messages
-  char buffer[BUF_SIZE];
+  char buffer[BUFFER_SIZE + 1];
 
   // test sending message
   while (1) {
     // Send message
     printf("Enter message (or 'quit'): ");
-    if (!fgets(buffer, BUF_SIZE, stdin))
+    if (!fgets(buffer, BUFFER_SIZE + 1, stdin))
       break;
 
     if (strncmp(buffer, "quit", 4) == 0)
@@ -113,7 +112,7 @@ int main(int argc, char *argv[]) {
     }
 
     // Receive response
-    ssize_t len = recv(conn_fd, buffer, BUF_SIZE - 1, 0);
+    ssize_t len = recv(conn_fd, buffer, BUFFER_SIZE + 1, 0);
     if (len < 0) {
       perror("recv");
       break;
