@@ -34,7 +34,7 @@ volatile static sig_atomic_t g_shutdown = 0;
 void *handle_client(void *arg) {
   TRACE_PRINT();
   struct thread_args *args = (struct thread_args *)arg;
-  struct skvs_ctx *ctx = args->ctx;
+  // struct skvs_ctx *ctx = args->ctx;
   int idx = args->idx;
   int listenfd = args->listenfd;
   /*---------------------------------------------------------------------------*/
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
   // create bind
   for (rp = res; rp != NULL; rp = rp->ai_next) {
     if (bind(listen_fd, rp->ai_addr, rp->ai_addrlen) == 0)
-      break; /* success */
+      break;
 
     close(listen_fd);
     listen_fd = -1;
@@ -179,8 +179,9 @@ int main(int argc, char *argv[]) {
     close(listen_fd);
     return EXIT_FAILURE;
   }
-
-    while (1) {
+  // init skvs
+  struct skvs_ctx *ctx = skvs_init(hash_size, delay);
+  while (1) {
     // accept
     struct sockaddr_storage client_addr;
     socklen_t addrlen = sizeof client_addr;
@@ -188,38 +189,68 @@ int main(int argc, char *argv[]) {
         accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
     if (client_fd == -1) {
       if (errno == EINTR)
-        break; /* interrupted by Ctrl-C */
+        break;
       perror("accept");
       continue;
     }
 
-    /* Print remote address */
-    char host[NI_MAXHOST], serv[NI_MAXSERV];
-    if (getnameinfo((struct sockaddr *)&client_addr, addrlen, host,
-                    sizeof host, serv, sizeof serv,
-                    NI_NUMERICHOST | NI_NUMERICSERV) == 0) {
-      printf("Client connected: %s:%s\n", host, serv);
-    }
+    // disable timeout for client socket
+    struct timeval tv0 = {0, 0};
+    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
 
-    while (1) {
-      /* Echo loop */
-      char buf[10];
-      ssize_t n;
-      while ((n = recv(client_fd, buf, sizeof buf, 0)) > 0) {
-        if (send(client_fd, buf, n, 0) != n) {
-          perror("send");
+    for (;;) { // handle client
+      // receive data
+      char rbuf[BUFFER_SIZE + 1];
+      char wbuf[BUFFER_SIZE + 1];
+      size_t wbuf_len;
+      ssize_t rbuf_len;
+      size_t total_recv = 0;
+      while (1) {
+        rbuf_len = recv(client_fd, rbuf + total_recv,
+                        BUFFER_SIZE - total_recv, 0);
+        if (rbuf_len < 0) {
+          perror("recv");
+          fprintf(stderr, "errno=%d\n", errno);
+
+          close(client_fd);
+          break;
+        } else if (rbuf_len == 0) {
+          // client disconnected
+          printf("client disconnected.\n");
+          close(client_fd);
+          break;
+        }
+        total_recv += rbuf_len;
+        // end of message
+        if (rbuf[total_recv - 1] == '\n') {
           break;
         }
       }
-      if (n == -1)
-        perror("recv");
-    }
+      printf("Received %zd bytes from client.\n", rbuf_len);
 
-    close(client_fd);
-    printf("Client disconnected.\n");
+      // parse request
+      skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
+      if (wbuf_len > 0) {
+        // send response
+        ssize_t total_sent = 0;
+        while (total_sent < wbuf_len) {
+          ssize_t sent = send(client_fd, wbuf + total_sent,
+                              wbuf_len - total_sent, 0);
+          if (sent < 0) { // send error
+            perror("send");
+            break;
+          }
+          total_sent += sent;
+        }
+      } else if (wbuf_len < 0) { // serve error
+        perror("skvs_serve");
+        break;
+      }
+    }
+    // close(client_fd);
+    // printf("Client disconnected.\n");
   }
 
-  /* 5. Cleanup */
   close(listen_fd);
   printf("Server terminated.\n");
   return EXIT_SUCCESS;
