@@ -120,7 +120,6 @@ int hash_insert(hashtable_t *table, const char *key,
   // check key exist
   node = table->buckets[index];
   while (node) {
-    printf("Checking node with key: %s and %s\n", node->key, key);
     if (strcmp(node->key, key) == 0) {
       // key already exists
       rwlock_write_unlock(lock);
@@ -128,9 +127,6 @@ int hash_insert(hashtable_t *table, const char *key,
     }
     node = node->next;
   }
-  // printf("Inserting key: %s, value: %s into index %u\n", key, value,
-  //        index);
-  // printf("Current bucket size: %zu\n", table->bucket_sizes[index]);
 
   // allocate new node
   node = malloc(sizeof(node_t));
@@ -145,7 +141,7 @@ int hash_insert(hashtable_t *table, const char *key,
 
   // node_t *n = table->buckets[index];
   // while (n) {
-  //   printf(" - Key: %s, Value: %s\n", n->key, n->value);
+  //   printf(" - key: %s, value: %s\n", n->key, n->value);
   //   n = n->next;
   // }
 
@@ -191,9 +187,6 @@ int hash_search(hashtable_t *table, const char *key, char *dst) {
         // release lock
         if (rwlock_read_unlock(lock) != 0) {
           DEBUG_PRINT("fail free read lock");
-          free(node->key);
-          free(node->value);
-          free(node);
           return -1; // error releasing lock
         }
       }
@@ -201,7 +194,11 @@ int hash_search(hashtable_t *table, const char *key, char *dst) {
     }
     node = node->next;
   }
-
+  // key not found unlock
+  if (rwlock_read_unlock(lock) != 0) {
+    DEBUG_PRINT("fail free write lock");
+    return -1;
+  }
   /* !caveat! if found, copy to dst before release read lock */
 
   /*---------------------------------------------------------------------------*/
@@ -231,10 +228,11 @@ int hash_update(hashtable_t *table, const char *key,
   node = table->buckets[index];
   while (node) {
     if (strcmp(node->key, key) == 0) {
-      printf("key found");
+      // printf("key found");
       // key exists
       new_value = strdup(value);
       node->value_size = strlen(new_value);
+      free(node->value);
       node->value = new_value; // update value
 
       // release lock
@@ -248,6 +246,11 @@ int hash_update(hashtable_t *table, const char *key,
       return 1; // updated
     }
     node = node->next;
+  }
+  // key not found unlock
+  if (rwlock_write_unlock(lock) != 0) {
+    DEBUG_PRINT("fail free write lock");
+    return -1;
   }
 
   /*---------------------------------------------------------------------------*/
@@ -303,6 +306,11 @@ int hash_delete(hashtable_t *table, const char *key) {
     }
     prev = node;
     node = node->next;
+  }
+  // key not found unlock
+  if (rwlock_write_unlock(lock) != 0) {
+    DEBUG_PRINT("fail free write lock");
+    return -1;
   }
 
   /*---------------------------------------------------------------------------*/

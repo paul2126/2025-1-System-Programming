@@ -48,43 +48,62 @@ void *handle_client(void *arg) {
   /*---------------------------------------------------------------------------*/
   /* edit here */
   // printf("%d fd: %d\n", idx, listenfd);
-  while (1) {
+  while (!g_shutdown) {
     // accept
     struct sockaddr_storage client_addr;
     socklen_t addrlen = sizeof client_addr;
     int client_fd =
         accept(listenfd, (struct sockaddr *)&client_addr, &addrlen);
     if (client_fd == -1) {
-      if (errno == EINTR)
+      // printf("accept failed: %s\n", strerror(errno));
+      if (errno == EINTR) {
+        perror("accept interrupted");
+        continue;
+      }
+      if (errno == EBADF || errno == ENOTSOCK) {
+        // socket closed
+        // printf("worker %d: socket closed exiting\n", idx);
         break;
-      // perror("accept");
+      }
+      if (!g_shutdown) {
+        // printf("worker %d: accept fail: %s\n", idx, strerror(errno));
+      }
       continue;
     }
 
-    // disable timeout for client socket
-    struct timeval tv0 = {0, 0};
+    // set timeout for client socket. prevent blocking forever
+    struct timeval tv0 = {1, 0};
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
 
-    for (;;) { // handle client
-      // receive data
+    int is_connected = 1;
+    while (!g_shutdown && is_connected) { // handle client
       char rbuf[BUFFER_SIZE + 1];
       char wbuf[BUFFER_SIZE + 1];
       size_t wbuf_len;
       ssize_t rbuf_len;
       size_t total_recv = 0;
-      while (1) {
+
+      // receive data
+      while (!g_shutdown && total_recv < BUFFER_SIZE) {
         rbuf_len = recv(client_fd, rbuf + total_recv,
                         BUFFER_SIZE - total_recv, 0);
         if (rbuf_len < 0) {
+          if (errno == EAGAIN || errno == EWOULDBLOCK) { // timeout
+            continue;
+          }
+          if (g_shutdown) { // check g_shutdown
+            // printf("worker %d: shutdown detected, closing client\n",
+            //        idx);
+            return NULL;
+          }
+          // unknown error close connection
+          is_connected = 0;
           perror("recv");
-          fprintf(stderr, "errno=%d\n", errno);
-
-          close(client_fd);
           break;
         } else if (rbuf_len == 0) {
           // client disconnected
-          printf("client disconnected.\n");
-          close(client_fd);
+          // printf("client disconnected.\n");
+          is_connected = 0;
           break;
         }
         total_recv += rbuf_len;
@@ -93,30 +112,40 @@ void *handle_client(void *arg) {
           break;
         }
       }
-      printf("Received %zd bytes from client.\n", rbuf_len);
+      // printf("received %zd bytes from client.\n", rbuf_len);
 
       // parse request
       skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
-      if (wbuf_len > 0) {
+      if (wbuf_len > 0 && !g_shutdown && rbuf_len > 0) {
         // send response
         ssize_t total_sent = 0;
-        while (total_sent < wbuf_len) {
+
+        int is_sent = 1;
+        while (total_sent < wbuf_len && !g_shutdown && is_sent) {
           ssize_t sent = send(client_fd, wbuf + total_sent,
                               wbuf_len - total_sent, 0);
           if (sent < 0) { // send error
+            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+              continue;
+            }
             perror("send");
+            is_sent = 0;      // error stop send
+            is_connected = 0; // stop client connection
             break;
+          } else { // sent successfully
+            total_sent += sent;
           }
-          total_sent += sent;
         }
       } else if (wbuf_len < 0) { // serve error
         perror("skvs_serve");
+        is_connected = 0; // stop client connection
         break;
       }
     }
-    // close(client_fd);
-    // printf("Client disconnected.\n");
+    close(client_fd);
+    // printf("client disconnected.\n");
   }
+  // printf("Worker %d exiting...\n", idx);
 
   /*---------------------------------------------------------------------------*/
 
@@ -213,6 +242,15 @@ int main(int argc, char *argv[]) {
   //        "hash size: %zu, rwlock delay: %d\n",
   //        ip, port, num_threads, hash_size, delay);
 
+  // block SIGINT in all threads, handle it only in main
+  sigset_t sigset;
+  sigemptyset(&sigset);
+  sigaddset(&sigset, SIGINT);
+  if (pthread_sigmask(SIG_BLOCK, &sigset, NULL) != 0) {
+    perror("pthread_sigmask");
+    exit(EXIT_FAILURE);
+  }
+
   struct addrinfo hints, *res, *rp;
   memset(&hints, 0, sizeof hints);
   hints.ai_family = AF_INET;
@@ -264,90 +302,25 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // handle ctrl c // change to sigaction
-  signal(SIGINT, handle_sigint);
-  while (!g_shutdown) // wait until shutdown signal
-    sleep(1);
+  // wait for sigint in main
+  int signum;
+  if (sigwait(&sigset, &signum) != 0) {
+    perror("sigwait");
+    exit(EXIT_FAILURE);
+  }
+  g_shutdown = 1; // set shutdown flag
+  close(listen_fd);
 
   // wait for workers to finish
-  for (int i = 0; i < num_threads; i++)
+  for (int i = 0; i < num_threads; i++) {
+    // printf("waiting worker %d to finish\n", i);
+    // printf("g_shutdown: %d\n", g_shutdown);
     pthread_join(workers[i], NULL);
+  }
   skvs_destroy(ctx, 1);
   free(workers);
-  /*
-  while (1) {
-    // accept
-    struct sockaddr_storage client_addr;
-    socklen_t addrlen = sizeof client_addr;
-    int client_fd =
-        accept(listen_fd, (struct sockaddr *)&client_addr, &addrlen);
-    if (client_fd == -1) {
-      if (errno == EINTR)
-        break;
-      perror("accept");
-      continue;
-    }
 
-    // disable timeout for client socket
-    struct timeval tv0 = {0, 0};
-    setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
-
-    for (;;) { // handle client
-      // receive data
-      char rbuf[BUFFER_SIZE + 1];
-      char wbuf[BUFFER_SIZE + 1];
-      size_t wbuf_len;
-      ssize_t rbuf_len;
-      size_t total_recv = 0;
-      while (1) {
-        rbuf_len = recv(client_fd, rbuf + total_recv,
-                        BUFFER_SIZE - total_recv, 0);
-        if (rbuf_len < 0) {
-          perror("recv");
-          fprintf(stderr, "errno=%d\n", errno);
-
-          close(client_fd);
-          break;
-        } else if (rbuf_len == 0) {
-          // client disconnected
-          printf("client disconnected.\n");
-          close(client_fd);
-          break;
-        }
-        total_recv += rbuf_len;
-        // end of message
-        if (rbuf[total_recv - 1] == '\n') {
-          break;
-        }
-      }
-      printf("Received %zd bytes from client.\n", rbuf_len);
-
-      // parse request
-      skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
-      if (wbuf_len > 0) {
-        // send response
-        ssize_t total_sent = 0;
-        while (total_sent < wbuf_len) {
-          ssize_t sent = send(client_fd, wbuf + total_sent,
-                              wbuf_len - total_sent, 0);
-          if (sent < 0) { // send error
-            perror("send");
-            break;
-          }
-          total_sent += sent;
-        }
-      } else if (wbuf_len < 0) { // serve error
-        perror("skvs_serve");
-        break;
-      }
-    }
-    // close(client_fd);
-    // printf("Client disconnected.\n");
-  }
-    */
-
-  close(listen_fd);
-  printf("Server terminated.\n");
+  // printf("server terminated\n");
   return EXIT_SUCCESS;
   /*---------------------------------------------------------------------------*/
 

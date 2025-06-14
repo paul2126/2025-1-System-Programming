@@ -94,7 +94,8 @@ int rwlock_read_unlock(rwlock_t *rw) {
     return -1; // fail to lock mutext
   }
   rw->read_count--;
-  if (rw->read_count == 0 && rw->write_count > 0) {
+  if (rw->read_count == 0 &&
+      rw->writer_ring_head != rw->writer_ring_tail) {
     if (pthread_cond_broadcast(&rw->writers) != 0) {
       pthread_mutex_unlock(&rw->lock);
       return -1; // fail to broadcast condition variable
@@ -119,6 +120,10 @@ int rwlock_write_lock(rwlock_t *rw) {
   // add to writer ring
   rw->writer_ring[rw->writer_ring_head] = pthread_self();
   rw->writer_ring_head = (rw->writer_ring_head + 1) % WRITER_RING_SIZE;
+  printf("writer ring head: %d, tail: %d\n", rw->writer_ring_head,
+         rw->writer_ring_tail);
+  printf("readcount: %d, writecount: %d\n", rw->read_count,
+         rw->write_count);
   while (rw->read_count > 0 || rw->write_count > 0 ||
          !pthread_equal(rw->writer_ring[rw->writer_ring_tail],
                         pthread_self())) {
@@ -156,10 +161,13 @@ int rwlock_write_unlock(rwlock_t *rw) {
       return -1; // fail to broadcast condition variable
     }
 
-    // wake up the next writer
-    if (pthread_cond_broadcast(&rw->writers) != 0) {
-      pthread_mutex_unlock(&rw->lock);
-      return -1; // fail to broadcast condition variable
+    // if there is writer waiting
+    if (rw->writer_ring_head != rw->writer_ring_tail) {
+      // then wake up the next writer
+      if (pthread_cond_broadcast(&rw->writers) != 0) {
+        pthread_mutex_unlock(&rw->lock);
+        return -1; // fail to signal condition variable
+      }
     }
   }
 

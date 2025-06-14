@@ -18,7 +18,7 @@
 int main(int argc, char *argv[]) {
   char *ip = DEFAULT_LOOPBACK_IP;
   int port = DEFAULT_PORT;
-  int interactive = 0; /* Default is non-interactive mode */
+  // int interactive = 0; /* Default is non-interactive mode */
   int opt;
 
   /*---------------------------------------------------------------------------*/
@@ -40,7 +40,7 @@ int main(int argc, char *argv[]) {
       }
       break;
     case 't':
-      interactive = 1;
+      // interactive = 1;
       break;
     case 'h':
     default:
@@ -54,8 +54,7 @@ int main(int argc, char *argv[]) {
   /*---------------------------------------------------------------------------*/
   /* edit here */
 
-  printf("Connecting to server at %s:%d\n", ip, port);
-  printf("Interactive mode: %s\n", interactive ? "ON" : "OFF");
+  // printf("connecting to server at %s:%d\n", ip, port);
   struct addrinfo hints, *res, *rp;
   int conn_fd;
   memset(&hints, 0, sizeof(hints));
@@ -92,14 +91,13 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  printf("Connected to server (getaddrinfo)\n");
+  // printf("connected to server\n");
 
   char buffer[BUFFER_SIZE + 1];
 
   // test sending message
   while (1) {
-    // Send message
-    printf("Enter message (or 'quit'): ");
+    // send message
     if (!fgets(buffer, BUFFER_SIZE + 1, stdin))
       break;
 
@@ -111,18 +109,19 @@ int main(int argc, char *argv[]) {
       break;
     }
 
-    // Receive response
+    // receive response
     ssize_t len = recv(conn_fd, buffer, BUFFER_SIZE + 1, 0);
     if (len < 0) {
       perror("recv");
       break;
     } else if (len == 0) {
-      printf("Server closed connection.\n");
+      printf("server closed\n");
       break;
     }
 
     buffer[len] = '\0'; // null-terminate
-    printf("Server replied: %s\n", buffer);
+    // server response
+    printf("%s", buffer);
   }
   freeaddrinfo(res); // clean up
   close(conn_fd);
