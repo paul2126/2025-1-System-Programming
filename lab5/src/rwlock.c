@@ -69,6 +69,8 @@ int rwlock_read_lock(rwlock_t *rw) {
   if (pthread_mutex_lock(&rw->lock) != 0) {
     return -1; // fail to lock mutext
   }
+  // printf("read lock\n%ld\n", pthread_self());
+  rw->read_count++; // make read_count also count for pending
   while (rw->write_count > 0) {
     if (pthread_cond_wait(&rw->readers, &rw->lock) != 0) {
       // attempt to unlock before returning
@@ -76,7 +78,6 @@ int rwlock_read_lock(rwlock_t *rw) {
       return -1;
     }
   }
-  rw->read_count++;
   if (pthread_mutex_unlock(&rw->lock) != 0) {
     return -1; // fail to unlock mutext
   }
@@ -94,6 +95,8 @@ int rwlock_read_unlock(rwlock_t *rw) {
     return -1; // fail to lock mutext
   }
   rw->read_count--;
+  // printf("read unlock\n%ld\n", pthread_self());
+
   if (rw->read_count == 0 &&
       rw->writer_ring_head != rw->writer_ring_tail) {
     if (pthread_cond_broadcast(&rw->writers) != 0) {
@@ -120,10 +123,11 @@ int rwlock_write_lock(rwlock_t *rw) {
   // add to writer ring
   rw->writer_ring[rw->writer_ring_head] = pthread_self();
   rw->writer_ring_head = (rw->writer_ring_head + 1) % WRITER_RING_SIZE;
-  printf("writer ring head: %d, tail: %d\n", rw->writer_ring_head,
-         rw->writer_ring_tail);
-  printf("readcount: %d, writecount: %d\n", rw->read_count,
-         rw->write_count);
+  // printf("write lock trying\n");
+  // printf("%ld: writer ring head: %d, tail: %d\n", pthread_self(),
+  //        rw->writer_ring_head, rw->writer_ring_tail);
+  // printf("%ld: readcount: %d, writecount: %d\n", pthread_self(),
+  //        rw->read_count, rw->write_count);
   while (rw->read_count > 0 || rw->write_count > 0 ||
          !pthread_equal(rw->writer_ring[rw->writer_ring_tail],
                         pthread_self())) {
@@ -135,6 +139,11 @@ int rwlock_write_lock(rwlock_t *rw) {
       return -1;
     }
   }
+  // printf("write lock\n");
+  // printf("%ld: writer ring head: %d, tail: %d\n", pthread_self(),
+  //        rw->writer_ring_head, rw->writer_ring_tail);
+  // printf("%ld: readcount: %d, writecount: %d\n", pthread_self(),
+  //        rw->read_count, rw->write_count);
   rw->write_count++;
   // deque from writer ring
   rw->writer_ring_tail = (rw->writer_ring_tail + 1) % WRITER_RING_SIZE;
@@ -154,6 +163,7 @@ int rwlock_write_unlock(rwlock_t *rw) {
     return -1; // fail to lock mutext
   }
   rw->write_count--;
+  // printf("write unlock\n%ld\n", pthread_self());
   if (rw->write_count == 0) {
     // first give priority to readers
     if (pthread_cond_broadcast(&rw->readers) != 0) {
