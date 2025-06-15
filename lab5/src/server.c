@@ -112,11 +112,16 @@ void *handle_client(void *arg) {
           break;
         }
       }
+      if (total_recv == 1 && rbuf[0] == '\n') {
+        // empty message close connection
+        is_connected = 0;
+        break;
+      }
       // printf("received %zd bytes from client.\n", rbuf_len);
 
       // parse request
       skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
-      if (wbuf_len > 0 && !g_shutdown && rbuf_len > 0) {
+      if (wbuf_len > 0 && !g_shutdown && rbuf_len > 0 && is_connected) {
         // send response
         ssize_t total_sent = 0;
 
@@ -143,7 +148,7 @@ void *handle_client(void *arg) {
       }
     }
     close(client_fd);
-    // printf("client disconnected.\n");
+    printf("connection closed by client\n");
   }
   // printf("Worker %d exiting...\n", idx);
 
