@@ -101,9 +101,6 @@ int main(int argc, char *argv[]) {
     if (!fgets(buffer, BUFFER_SIZE + 1, stdin))
       break;
 
-    if (strncmp(buffer, "quit", 4) == 0)
-      break;
-
     if (send(conn_fd, buffer, strlen(buffer), 0) < 0) {
       perror("send");
       break;
@@ -115,7 +112,7 @@ int main(int argc, char *argv[]) {
       perror("recv");
       break;
     } else if (len == 0) {
-      printf("server closed\n");
+      // printf("server closed\n");
       break;
     }
 
