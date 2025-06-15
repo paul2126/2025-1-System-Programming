@@ -125,6 +125,41 @@ case $TEST_SET in
         )
         INTERVALS=(5 10 5 5 5 -20 0 0)
         ;;
+        7)
+        REQUESTS=(
+            "CREATE hello world"
+            "READ hello"
+            "UPDATE hello worl1"
+            "UPDATE hello worl2"
+            "UPDATE hello worl3"
+            "UPDATE hello worl4"
+            "UPDATE hello worl5"
+            "UPDATE hello worl6"
+            "UPDATE hello worl7"
+            "UPDATE hello worl8"
+            "UPDATE hello worl9"
+            "UPDATE hello worl0"
+            "UPDATE hello worl!"
+            "READ hello"
+        )
+        RESPONSES=(
+            "CREATE OK"
+            "world"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "UPDATE OK"
+            "worl3"
+        )
+        INTERVALS=(5 5 5 5 5 10 5 5 5 5 5 5 5 -40)
+        ;;
     *)
         echo "Invalid test set number. Use 1, 2, 3, or 4."
         exit 1
