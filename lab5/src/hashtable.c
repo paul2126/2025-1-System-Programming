@@ -168,6 +168,8 @@ int hash_search(hashtable_t *table, const char *key, char *dst) {
   /*---------------------------------------------------------------------------*/
   /* edit here */
   // try lock
+  // printf("%03ld: [hastable] read val of %s\n", pthread_self() % 1000,
+  //        key);
   lock = &table->locks[index];
   if (rwlock_read_lock(lock) != 0) {
     DEBUG_PRINT("fail get read lock");
@@ -180,6 +182,8 @@ int hash_search(hashtable_t *table, const char *key, char *dst) {
     if (strcmp(node->key, key) == 0) {
       // key exists
       if (dst) {
+        // printf("%03ld: [hastable] get val of %s\n",
+        //        pthread_self() % 1000, node->value);
         // copy value to dst
         strncpy(dst, node->value, node->value_size);
         dst[node->value_size] = '\0'; // ensure null termination
@@ -218,6 +222,9 @@ int hash_update(hashtable_t *table, const char *key,
   /*---------------------------------------------------------------------------*/
   /* edit here */
   // try lock
+  // printf("%03ld: [hastable] update %s to %s\n", pthread_self() %
+  // 1000,
+  //        key, value);
   lock = &table->locks[index];
   if (rwlock_write_lock(lock) != 0) {
     DEBUG_PRINT("fail get write lock");
@@ -229,6 +236,8 @@ int hash_update(hashtable_t *table, const char *key,
   while (node) {
     if (strcmp(node->key, key) == 0) {
       // printf("key found");
+      // printf("%03ld: [hastable] change val to %s\n",
+      //        pthread_self() % 1000, value);
       // key exists
       new_value = strdup(value);
       node->value_size = strlen(new_value);
