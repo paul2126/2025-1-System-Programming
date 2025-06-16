@@ -66,11 +66,14 @@ int rwlock_read_lock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  // printf("%03ld: read lock trying\n", pthread_self() % 1000);
   if (pthread_mutex_lock(&rw->lock) != 0) {
     return -1; // fail to lock mutext
   }
-  // printf("read lock\n%ld\n", pthread_self());
   rw->read_count++; // make read_count also count for pending
+  // printf("%03ld: read lock\n", pthread_self() % 1000);
+  // printf("%03ld: readcount: %d, writecount: %d\n",
+  //        pthread_self() % 1000, rw->read_count, rw->write_count);
   while (rw->write_count > 0) {
     if (pthread_cond_wait(&rw->readers, &rw->lock) != 0) {
       // attempt to unlock before returning
@@ -78,15 +81,19 @@ int rwlock_read_lock(rwlock_t *rw) {
       return -1;
     }
   }
+  // printf("%03ld: read lock (run task)\n", pthread_self() % 1000);
+
   if (pthread_mutex_unlock(&rw->lock) != 0) {
     return -1; // fail to unlock mutext
   }
+  // printf("%03ld: read lock free\n", pthread_self() % 1000);
 
   /*---------------------------------------------------------------------------*/
   return 0;
 }
 /*---------------------------------------------------------------------------*/
 int rwlock_read_unlock(rwlock_t *rw) {
+  // printf("%03ld: read unlock trying\n", pthread_self() % 1000);
   sleep(rw->delay); // do not remove this line
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
@@ -95,7 +102,17 @@ int rwlock_read_unlock(rwlock_t *rw) {
     return -1; // fail to lock mutext
   }
   rw->read_count--;
-  // printf("read unlock\n%ld\n", pthread_self());
+  // printf("%03ld: read unlock\n", pthread_self() % 1000);
+  // printf("%03ld: readcount: %d, writecount: %d\n",
+  //        pthread_self() % 1000, rw->read_count, rw->write_count);
+  if (rw->read_count > 0) { // if there are still readers
+    if (pthread_cond_broadcast(&rw->readers) != 0) {
+      pthread_mutex_unlock(&rw->lock);
+      return -1; // fail to broadcast condition variable
+    }
+    // printf("%03ld: read unlock broadcast(read)\n",
+    //        pthread_self() % 1000);
+  }
 
   if (rw->read_count == 0 &&
       rw->writer_ring_head != rw->writer_ring_tail) {
@@ -103,12 +120,14 @@ int rwlock_read_unlock(rwlock_t *rw) {
       pthread_mutex_unlock(&rw->lock);
       return -1; // fail to broadcast condition variable
     }
+    // printf("%03ld: read unlock broadcast(write)\n",
+    //        pthread_self() % 1000);
   }
 
   if (pthread_mutex_unlock(&rw->lock) != 0) {
     return -1; // fail to unlock mutext
   }
-
+  // printf("%03ld: read unlock free\n", pthread_self() % 1000);
   /*---------------------------------------------------------------------------*/
   return 0;
 }
@@ -117,16 +136,17 @@ int rwlock_write_lock(rwlock_t *rw) {
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+  // printf("%03ld: write lock trying\n", pthread_self() % 1000);
   if (pthread_mutex_lock(&rw->lock) != 0) {
     return -1; // fail to lock mutext
   }
   // add to writer ring
+  // printf("%03ld: write lock\n", pthread_self() % 1000);
   rw->writer_ring[rw->writer_ring_head] = pthread_self();
   rw->writer_ring_head = (rw->writer_ring_head + 1) % WRITER_RING_SIZE;
-  // printf("write lock trying\n");
-  // printf("%ld: writer ring head: %d, tail: %d\n", pthread_self(),
+  // printf("%03ld: writer ring head: %d, tail: %d\n", pthread_self(),
   //        rw->writer_ring_head, rw->writer_ring_tail);
-  // printf("%ld: readcount: %d, writecount: %d\n", pthread_self(),
+  // printf("%03ld: readcount: %d, writecount: %d\n", pthread_self(),
   //        rw->read_count, rw->write_count);
   while (rw->read_count > 0 || rw->write_count > 0 ||
          !pthread_equal(rw->writer_ring[rw->writer_ring_tail],
@@ -139,51 +159,64 @@ int rwlock_write_lock(rwlock_t *rw) {
       return -1;
     }
   }
-  // printf("write lock\n");
-  // printf("%ld: writer ring head: %d, tail: %d\n", pthread_self(),
+  // printf("%03ld: writer ring head: %d, tail: %d\n", pthread_self(),
   //        rw->writer_ring_head, rw->writer_ring_tail);
-  // printf("%ld: readcount: %d, writecount: %d\n", pthread_self(),
+  // printf("%03ld: readcount: %d, writecount: %d\n", pthread_self(),
   //        rw->read_count, rw->write_count);
+  // printf("%03ld: write lock (run task)\n", pthread_self() % 1000);
+
   rw->write_count++;
   // deque from writer ring
   rw->writer_ring_tail = (rw->writer_ring_tail + 1) % WRITER_RING_SIZE;
   if (pthread_mutex_unlock(&rw->lock) != 0) {
     return -1; // fail to unlock mutext
   }
+  // printf("%03ld: write lock free\n", pthread_self() % 1000);
   /*---------------------------------------------------------------------------*/
   return 0;
 }
 /*---------------------------------------------------------------------------*/
 int rwlock_write_unlock(rwlock_t *rw) {
+  // printf("%03ld: write unlock trying\n", pthread_self() % 1000);
   sleep(rw->delay); // do not remove this line
   TRACE_PRINT();
   /*---------------------------------------------------------------------------*/
   /* edit here */
+
   if (pthread_mutex_lock(&rw->lock) != 0) {
     return -1; // fail to lock mutext
   }
   rw->write_count--;
-  // printf("write unlock\n%ld\n", pthread_self());
+  // printf("%03ld: write unlock\n", pthread_self() % 1000);
+  // printf("%03ld: readcount: %d, writecount: %d\n",
+  //        pthread_self() % 1000, rw->read_count, rw->write_count);
   if (rw->write_count == 0) {
     // first give priority to readers
-    if (pthread_cond_broadcast(&rw->readers) != 0) {
-      pthread_mutex_unlock(&rw->lock);
-      return -1; // fail to broadcast condition variable
+    if (rw->read_count >= 1) {
+      if (pthread_cond_broadcast(&rw->readers) != 0) {
+        pthread_mutex_unlock(&rw->lock);
+        return -1; // fail to broadcast condition variable
+      }
+      // printf("%03ld: write unlock broadcast(read)\n",
+      //        pthread_self() % 1000);
     }
 
     // if there is writer waiting
-    if (rw->writer_ring_head != rw->writer_ring_tail) {
+    else if (rw->writer_ring_head != rw->writer_ring_tail) {
       // then wake up the next writer
       if (pthread_cond_broadcast(&rw->writers) != 0) {
         pthread_mutex_unlock(&rw->lock);
         return -1; // fail to signal condition variable
       }
+      // printf("%03ld: write unlock broadcast(write)\n",
+      //        pthread_self() % 1000);
     }
   }
 
   if (pthread_mutex_unlock(&rw->lock) != 0) {
     return -1; // fail to unlock mutext
   }
+  // printf("%03ld: write unlock free\n", pthread_self() % 1000);
   /*---------------------------------------------------------------------------*/
   return 0;
 }
