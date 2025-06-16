@@ -47,64 +47,58 @@ void *handle_client(void *arg) {
 
   /*---------------------------------------------------------------------------*/
   /* edit here */
-  // printf("%d fd: %d\n", idx, listenfd);
-  while (!g_shutdown) {
-    // accept
-    struct sockaddr_storage client_addr;
+
+  // loop the entire thread
+  for (;;) {
+    if (g_shutdown) {
+      break;
+    }
+    // printf("%d\n", errno);
+    // accept client connection
+    struct sockaddr_in client_addr;
     socklen_t addrlen = sizeof client_addr;
     int client_fd =
         accept(listenfd, (struct sockaddr *)&client_addr, &addrlen);
-    if (client_fd == -1) {
-      // printf("accept failed: %s\n", strerror(errno));
-      if (errno == EINTR) {
-        perror("accept interrupted");
+    if (client_fd < 0) {
+      if (errno == EINTR || errno == EAGAIN)
         continue;
-      }
-      if (errno == EBADF || errno == ENOTSOCK) {
-        // socket closed
-        // printf("worker %d: socket closed exiting\n", idx);
-        break;
-      }
-      if (!g_shutdown) {
-        // printf("worker %d: accept fail: %s\n", idx, strerror(errno));
-      }
-      continue;
+      perror("accept failed");
+      break;
     }
 
     // set timeout for client socket. prevent blocking forever
     struct timeval tv0 = {1, 0};
     setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, &tv0, sizeof(tv0));
 
-    int is_connected = 1;
-    while (!g_shutdown && is_connected) { // handle client
-      char rbuf[BUFFER_SIZE + 1];
-      char wbuf[BUFFER_SIZE + 1];
+    // persistent connection with one client
+    for (;;) {
+      if (g_shutdown) {
+        break;
+      }
+      char rbuf[BUFFER_SIZE];
+      char wbuf[BUFFER_SIZE];
       size_t wbuf_len;
       ssize_t rbuf_len;
       size_t total_recv = 0;
 
       // receive data
-      while (!g_shutdown && total_recv < BUFFER_SIZE) {
+      while (!g_shutdown) {
         rbuf_len = recv(client_fd, rbuf + total_recv,
                         BUFFER_SIZE - total_recv, 0);
         if (rbuf_len < 0) {
-          if (errno == EAGAIN || errno == EWOULDBLOCK) { // timeout
+          if (errno == EAGAIN || errno == EINTR) { // timeout
             continue;
           }
-          if (g_shutdown) { // check g_shutdown
-            // printf("worker %d: shutdown detected, closing client\n",
-            //        idx);
-            return NULL;
+          if (errno == ECONNRESET) {
+            goto close_and_continue;
           }
           // unknown error close connection
-          is_connected = 0;
           perror("recv");
-          break;
-        } else if (rbuf_len == 0) {
-          // client disconnected
+          goto close_and_continue;
+          exit(EXIT_FAILURE);
+        } else if (rbuf_len == 0) { // client disconnected
           // printf("client disconnected.\n");
-          is_connected = 0;
-          break;
+          goto close_and_continue;
         }
         total_recv += rbuf_len;
         // end of message
@@ -114,44 +108,48 @@ void *handle_client(void *arg) {
       }
       if (total_recv == 1 && rbuf[0] == '\n') {
         // empty message close connection
-        is_connected = 0;
-        break;
+        goto close_and_continue;
       }
-      // printf("received %zd bytes from client.\n", rbuf_len);
 
       // parse request
-      skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
-      if (wbuf_len > 0 && !g_shutdown && rbuf_len > 0 && is_connected) {
-        // send response
+      int is_done = skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
+
+      if (g_shutdown) {
+        goto close_and_continue;
+      }
+
+      // loop for sending response
+      if (is_done) { // parse success
         ssize_t total_sent = 0;
 
-        int is_sent = 1;
-        while (total_sent < wbuf_len && !g_shutdown && is_sent) {
+        while (total_sent < wbuf_len && !g_shutdown) {
           ssize_t sent = send(client_fd, wbuf + total_sent,
                               wbuf_len - total_sent, 0);
           if (sent < 0) { // send error
-            if (errno == EAGAIN || errno == EWOULDBLOCK) {
+            if (errno == EAGAIN || errno == EINTR) {
               continue;
             }
+            if (errno == EPIPE) {
+              goto close_and_continue;
+            }
+            if (errno == ECONNRESET) {
+              goto close_and_continue;
+            }
             perror("send");
-            is_sent = 0;      // error stop send
-            is_connected = 0; // stop client connection
-            break;
+            exit(EXIT_FAILURE);
           } else { // sent successfully
             total_sent += sent;
           }
         }
-      } else if (wbuf_len < 0) { // serve error
+      } else { // parse error
         perror("skvs_serve");
-        is_connected = 0; // stop client connection
         break;
       }
     }
+  close_and_continue:
     close(client_fd);
-    printf("connection closed by client\n");
+    printf("Connection closed by client\n");
   }
-  // printf("Worker %d exiting...\n", idx);
-
   /*---------------------------------------------------------------------------*/
 
   return NULL;
@@ -247,17 +245,20 @@ int main(int argc, char *argv[]) {
   //        "hash size: %zu, rwlock delay: %d\n",
   //        ip, port, num_threads, hash_size, delay);
 
-  // block SIGINT in all threads, handle it only in main
-  sigset_t sigset;
-  sigemptyset(&sigset);
-  sigaddset(&sigset, SIGINT);
-  if (pthread_sigmask(SIG_BLOCK, &sigset, NULL) != 0) {
-    perror("pthread_sigmask");
+  // register signal handler for SIGINT
+  // if (signal(SIGINT, handle_sigint) == SIG_ERR) {
+  //   perror("signal");
+  //   exit(EXIT_FAILURE);
+  // }
+  struct sigaction sa = {.sa_handler = handle_sigint};
+  sigemptyset(&sa.sa_mask);
+  if (sigaction(SIGINT, &sa, NULL) == -1) {
+    perror("signal");
     exit(EXIT_FAILURE);
   }
-
   struct addrinfo hints, *res, *rp;
   memset(&hints, 0, sizeof hints);
+
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
   hints.ai_flags = AI_PASSIVE;
@@ -291,6 +292,8 @@ int main(int argc, char *argv[]) {
     close(listen_fd);
     return EXIT_FAILURE;
   }
+  printf("Server listening on %s:%d\n", ip, port);
+
   // init skvs
   struct skvs_ctx *ctx = skvs_init(hash_size, delay);
 
@@ -307,21 +310,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  // wait for sigint in main
-  int signum;
-  if (sigwait(&sigset, &signum) != 0) {
-    perror("sigwait");
-    exit(EXIT_FAILURE);
-  }
-  g_shutdown = 1; // set shutdown flag
-  close(listen_fd);
-
   // wait for workers to finish
   for (int i = 0; i < num_threads; i++) {
     // printf("waiting worker %d to finish\n", i);
     // printf("g_shutdown: %d\n", g_shutdown);
     pthread_join(workers[i], NULL);
   }
+  close(listen_fd);
   skvs_destroy(ctx, 1);
   free(workers);
 
