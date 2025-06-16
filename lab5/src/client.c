@@ -93,12 +93,12 @@ int main(int argc, char *argv[]) {
 
   // printf("connected to server\n");
 
-  char buffer[BUFFER_SIZE + 1];
+  char buffer[BUFFER_SIZE];
 
   // test sending message
   while (1) {
     // send message
-    if (!fgets(buffer, BUFFER_SIZE + 1, stdin))
+    if (!fgets(buffer, BUFFER_SIZE, stdin))
       break;
 
     if (send(conn_fd, buffer, strlen(buffer), 0) < 0) {
@@ -107,12 +107,13 @@ int main(int argc, char *argv[]) {
     }
 
     // receive response
-    ssize_t len = recv(conn_fd, buffer, BUFFER_SIZE + 1, 0);
+    ssize_t len = recv(conn_fd, buffer, BUFFER_SIZE, 0);
     if (len < 0) {
       perror("recv");
       break;
     } else if (len == 0) {
       // printf("server closed\n");
+      fprintf(stderr, "Connection closed by server\n");
       break;
     }
 
