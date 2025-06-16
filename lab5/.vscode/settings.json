@@ -1,5 +1,7 @@
 {
     "files.associations": {
-        "common.h": "c"
+        "common.h": "c",
+        "stdio.h": "c",
+        "pthread.h": "c"
     }
 }
