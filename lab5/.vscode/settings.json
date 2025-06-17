@@ -2,6 +2,7 @@
     "files.associations": {
         "common.h": "c",
         "stdio.h": "c",
-        "pthread.h": "c"
+        "pthread.h": "c",
+        "skvslib.h": "c"
     }
 }
