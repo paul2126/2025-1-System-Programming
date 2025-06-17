@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
       break;
     // empty line close conn
     if (strcmp(buffer, "\n") == 0) {
-      break; // close connection on empty line
+      break;
     }
     if (send(conn_fd, buffer, strlen(buffer), 0) < 0) {
       perror("send");
