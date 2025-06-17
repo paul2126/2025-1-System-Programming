@@ -112,7 +112,7 @@ void *handle_client(void *arg) {
       }
 
       // parse request
-      int is_done = skvs_serve(ctx, rbuf, rbuf_len, wbuf, &wbuf_len);
+      int is_done = skvs_serve(ctx, rbuf, total_recv, wbuf, &wbuf_len);
 
       if (g_shutdown) {
         goto close_and_continue;
@@ -141,6 +141,7 @@ void *handle_client(void *arg) {
             total_sent += sent;
           }
         }
+        // printf("Connection closed by client\n");
       } else { // parse error
         perror("skvs_serve");
         break;
@@ -151,7 +152,6 @@ void *handle_client(void *arg) {
     printf("Connection closed by client\n");
   }
   /*---------------------------------------------------------------------------*/
-
   return NULL;
 }
 /*---------------------------------------------------------------------------*/
@@ -316,11 +316,11 @@ int main(int argc, char *argv[]) {
     // printf("g_shutdown: %d\n", g_shutdown);
     pthread_join(workers[i], NULL);
   }
+  printf("Shutting down server...\n");
   close(listen_fd);
   skvs_destroy(ctx, 1);
   free(workers);
 
-  // printf("server terminated\n");
   return EXIT_SUCCESS;
   /*---------------------------------------------------------------------------*/
 
