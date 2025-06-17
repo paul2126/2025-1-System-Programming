@@ -93,33 +93,38 @@ int main(int argc, char *argv[]) {
 
   // printf("connected to server\n");
 
-  char buffer[BUFFER_SIZE];
-
+  char buffer[BUFFER_SIZE + 1];
+  char response[BUFFER_SIZE + 1];
+  memset(buffer, 0, BUFFER_SIZE + 1);
+  memset(response, 0, BUFFER_SIZE + 1);
   // test sending message
   while (1) {
     // send message
-    if (!fgets(buffer, BUFFER_SIZE, stdin))
+    if (!fgets(buffer, BUFFER_SIZE + 1, stdin))
       break;
-
+    // empty line close conn
+    if (strcmp(buffer, "\n") == 0) {
+      break; // Close connection on empty line
+    }
     if (send(conn_fd, buffer, strlen(buffer), 0) < 0) {
       perror("send");
       break;
     }
 
     // receive response
-    ssize_t len = recv(conn_fd, buffer, BUFFER_SIZE, 0);
+    ssize_t len = recv(conn_fd, response, BUFFER_SIZE, 0);
     if (len < 0) {
       perror("recv");
       break;
     } else if (len == 0) {
       // printf("server closed\n");
-      fprintf(stderr, "Connection closed by server\n");
+      // fprintf(stderr, "Connection closed by server\n");
       break;
     }
 
-    buffer[len] = '\0'; // null-terminate
+    response[len] = '\0'; // null-terminate
     // server response
-    printf("%s", buffer);
+    printf("%s", response);
   }
   freeaddrinfo(res); // clean up
   close(conn_fd);
